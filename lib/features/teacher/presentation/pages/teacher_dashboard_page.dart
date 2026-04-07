@@ -47,6 +47,9 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           user = state.user;
         }
 
+        final topPadding = MediaQuery.of(context).padding.top;
+        final appBarHeight = topPadding + 72; // status bar + app bar content
+
         return Scaffold(
           backgroundColor: _surface,
           body: Stack(
@@ -55,10 +58,12 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
               CustomScrollView(
                 slivers: [
                   // TopAppBar spacing
-                  const SliverToBoxAdapter(child: SizedBox(height: 96)),
+                  SliverToBoxAdapter(
+                    child: SizedBox(height: appBarHeight + 16),
+                  ),
                   // Content
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
                     sliver: SliverList(
                       delegate: SliverChildListDelegate([
                         // Check-In Banner
@@ -194,7 +199,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     final bool isCheckedIn = false;
 
     return Container(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
@@ -235,22 +240,25 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
               Text(
                 'FOKUS HARI INI',
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.5,
                   color: Colors.white.withAlpha(204), // 0.8 opacity
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                isCheckedIn
-                    ? 'Anda sudah check-in hari ini!'
-                    : 'Siap untuk memulai hari?',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  height: 1.2,
-                  color: Colors.white,
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 280),
+                child: Text(
+                  isCheckedIn
+                      ? 'Anda sudah check-in hari ini!'
+                      : 'Siap untuk memulai hari?',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                    color: Colors.white,
+                  ),
                 ),
               ),
               const SizedBox(height: 24),

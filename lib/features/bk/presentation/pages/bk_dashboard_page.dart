@@ -49,6 +49,9 @@ class _BkDashboardPageState extends State<BkDashboardPage> {
           user = state.user;
         }
 
+        final topPadding = MediaQuery.of(context).padding.top;
+        final appBarHeight = topPadding + 72; // status bar + app bar content
+
         return Scaffold(
           backgroundColor: _surface,
           body: Stack(
@@ -57,10 +60,12 @@ class _BkDashboardPageState extends State<BkDashboardPage> {
               CustomScrollView(
                 slivers: [
                   // TopAppBar spacing
-                  const SliverToBoxAdapter(child: SizedBox(height: 96)),
+                  SliverToBoxAdapter(
+                    child: SizedBox(height: appBarHeight + 16),
+                  ),
                   // Content
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
                     sliver: SliverList(
                       delegate: SliverChildListDelegate([
                         // Welcome Section & Primary Action
