@@ -31,6 +31,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       if (isLoggedIn) {
         final user = await _authRepository.getCurrentUser();
         if (user != null) {
+          // Check if user is Admin - force logout on mobile
+          if (user.isAdmin) {
+            await _authRepository.logout();
+            emit(const AuthUnauthenticated());
+            return;
+          }
+
           emit(AuthAuthenticated(user: user));
         } else {
           emit(const AuthUnauthenticated());
@@ -55,6 +62,23 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         nip: event.nip,
         password: event.password,
       );
+
+      // Check if user is Admin - reject login on mobile
+      if (loginData.user.isAdmin) {
+        // Logout to clear token
+        await _authRepository.logout();
+
+        emit(
+          const AuthLoginFailure(
+            message:
+                'Admin hanya dapat mengakses sistem melalui Web. Silakan gunakan browser untuk login.',
+          ),
+        );
+
+        await Future.delayed(const Duration(milliseconds: 100));
+        emit(const AuthUnauthenticated());
+        return;
+      }
 
       emit(AuthAuthenticated(user: loginData.user));
     } catch (e) {

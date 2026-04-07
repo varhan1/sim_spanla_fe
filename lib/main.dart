@@ -9,7 +9,8 @@ import 'core/network/dio_client.dart';
 import 'features/auth/data/repositories/auth_repository.dart';
 import 'features/auth/presentation/bloc/bloc.dart';
 import 'features/auth/presentation/pages/login_page.dart';
-import 'features/home/presentation/pages/home_page.dart';
+import 'features/teacher/presentation/pages/teacher_dashboard_page.dart';
+import 'features/bk/presentation/pages/bk_dashboard_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -259,9 +260,17 @@ class AuthNavigator extends StatelessWidget {
           return const LoginPage();
         }
 
-        // Show home page if authenticated
+        // Show dashboard based on user role if authenticated
         if (state is AuthAuthenticated) {
-          return const HomePage();
+          final user = state.user;
+
+          // Route based on role
+          if (user.isGuruBK) {
+            return const BkDashboardPage();
+          } else {
+            // Default to Teacher Dashboard for Guru
+            return const TeacherDashboardPage();
+          }
         }
 
         // Show login during login process (to show loading on button)
