@@ -4,6 +4,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../auth/presentation/bloc/bloc.dart';
 import '../../../auth/data/models/user.dart';
+import '../../data/models/schedule.dart';
+import '../bloc/bloc.dart';
+import 'check_in_page.dart';
+import 'schedule_page.dart';
 
 /// Teacher Dashboard - Following stitch design (s_03_dashboard_guru_new_style)
 class TeacherDashboardPage extends StatefulWidget {
@@ -15,6 +19,7 @@ class TeacherDashboardPage extends StatefulWidget {
 
 class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   int _selectedNavIndex = 0;
+  bool isCheckedIn = false; // Track check-in status
 
   // Colors from stitch design
   static const Color _primary = Color(0xFF0040DF);
@@ -30,6 +35,15 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   static const Color _tertiaryContainer = Color(0xFF943FE2);
   static const Color _error = Color(0xFFBA1A1A);
 
+  @override
+  void initState() {
+    super.initState();
+    // Load check-in status when page loads
+    context.read<AttendanceBloc>().add(const CheckAttendanceStatus());
+    // Load today's schedule
+    context.read<ScheduleBloc>().add(const LoadSchedules());
+  }
+
   String _getGreeting() {
     final hour = DateTime.now().hour;
     if (hour < 12) return 'Selamat Pagi';
@@ -40,61 +54,105 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AuthBloc, AuthState>(
-      builder: (context, state) {
-        User? user;
-        if (state is AuthAuthenticated) {
-          user = state.user;
+    return BlocListener<AttendanceBloc, AttendanceState>(
+      listener: (context, attendanceState) {
+        // Update check-in status when loaded
+        if (attendanceState is AttendanceStatusLoaded) {
+          setState(() {
+            isCheckedIn = attendanceState.hasCheckedIn;
+          });
         }
 
-        final topPadding = MediaQuery.of(context).padding.top;
-        final appBarHeight = topPadding + 72; // status bar + app bar content
-
-        return Scaffold(
-          backgroundColor: _surface,
-          body: Stack(
-            children: [
-              // Main Content
-              CustomScrollView(
-                slivers: [
-                  // TopAppBar spacing
-                  SliverToBoxAdapter(
-                    child: SizedBox(height: appBarHeight + 16),
-                  ),
-                  // Content
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
-                    sliver: SliverList(
-                      delegate: SliverChildListDelegate([
-                        // Check-In Banner
-                        _buildCheckInBanner(user),
-                        const SizedBox(height: 40),
-
-                        // Metrics Bento Grid
-                        _buildMetricsGrid(user),
-                        const SizedBox(height: 40),
-
-                        // Today's Schedule
-                        _buildScheduleSection(),
-                        const SizedBox(height: 40),
-
-                        // Jurnal Progress
-                        _buildJournalProgressCard(user),
-                      ]),
-                    ),
-                  ),
-                ],
+        // Show success message after check-in
+        if (attendanceState is AttendanceCheckInSuccess) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Konfirmasi kehadiran berhasil!',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
               ),
+              backgroundColor: const Color(0xFF10B981), // green-500
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
+        }
 
-              // Fixed TopAppBar
-              _buildTopAppBar(user),
-
-              // Fixed BottomNavBar
-              _buildBottomNavBar(),
-            ],
-          ),
-        );
+        // Show error message
+        if (attendanceState is AttendanceError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                attendanceState.message,
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              ),
+              backgroundColor: const Color(0xFFDC2626), // red-600
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
+        }
       },
+      child: BlocBuilder<AuthBloc, AuthState>(
+        builder: (context, state) {
+          User? user;
+          if (state is AuthAuthenticated) {
+            user = state.user;
+          }
+
+          final topPadding = MediaQuery.of(context).padding.top;
+          final appBarHeight = topPadding + 72; // status bar + app bar content
+
+          return Scaffold(
+            backgroundColor: _surface,
+            body: Stack(
+              children: [
+                // Main Content
+                CustomScrollView(
+                  slivers: [
+                    // TopAppBar spacing
+                    SliverToBoxAdapter(
+                      child: SizedBox(height: appBarHeight + 16),
+                    ),
+                    // Content
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          // Check-In Banner
+                          _buildCheckInBanner(user),
+                          const SizedBox(height: 40),
+
+                          // Metrics Bento Grid
+                          _buildMetricsGrid(user),
+                          const SizedBox(height: 40),
+
+                          // Today's Schedule
+                          _buildScheduleSection(),
+                          const SizedBox(height: 40),
+
+                          // Jurnal Progress
+                          _buildJournalProgressCard(user),
+                        ]),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Fixed TopAppBar
+                _buildTopAppBar(user),
+
+                // Fixed BottomNavBar
+                _buildBottomNavBar(),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -195,8 +253,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   }
 
   Widget _buildCheckInBanner(User? user) {
-    // TODO: Get actual check-in status from API
-    final bool isCheckedIn = false;
+    // Use state field isCheckedIn (updated via BlocListener)
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -270,9 +327,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                     icon: Icons.arrow_forward,
                     isPrimary: true,
                     enabled: !isCheckedIn,
-                    onTap: () {
-                      // TODO: Navigate to check-in
-                    },
+                    onTap: () => _handleCheckIn(),
                   ),
                   const SizedBox(width: 12),
                   // Check-out Button
@@ -346,35 +401,54 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   }
 
   Widget _buildMetricsGrid(User? user) {
-    // TODO: Get actual metrics from API
-    return Row(
-      children: [
-        // Metric 1 - Jadwal Hari Ini
-        Expanded(
-          child: _buildMetricCard(
-            icon: Icons.bolt,
-            iconBgColor: _primaryContainer.withAlpha(26), // 0.1 opacity
-            iconColor: _primary,
-            label: 'JADWAL',
-            value: '6',
-            suffix: 'JP',
-            subtitle: 'Jam Pelajaran',
-          ),
-        ),
-        const SizedBox(width: 16),
-        // Metric 2 - Jurnal Progress
-        Expanded(
-          child: _buildMetricCard(
-            icon: Icons.task_alt,
-            iconBgColor: _tertiaryContainer.withAlpha(26), // 0.1 opacity
-            iconColor: _tertiary,
-            label: 'JURNAL',
-            value: '4',
-            suffix: '/6',
-            subtitle: 'Hampir selesai',
-          ),
-        ),
-      ],
+    return BlocBuilder<ScheduleBloc, ScheduleState>(
+      builder: (context, state) {
+        int scheduleCount = 0;
+        int doneCount = 0;
+        int totalCount = 0;
+
+        if (state is ScheduleLoaded) {
+          totalCount = state.schedules.length;
+          doneCount = state.schedules
+              .where((s) => s.statusJurnal == JournalStatus.done)
+              .length;
+          scheduleCount = totalCount;
+        }
+
+        return Row(
+          children: [
+            // Metric 1 - Jadwal Hari Ini
+            Expanded(
+              child: _buildMetricCard(
+                icon: Icons.bolt,
+                iconBgColor: _primaryContainer.withAlpha(26),
+                iconColor: _primary,
+                label: 'JADWAL',
+                value: '$scheduleCount',
+                suffix: 'JP',
+                subtitle: 'Jam Pelajaran',
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Metric 2 - Jurnal Progress
+            Expanded(
+              child: _buildMetricCard(
+                icon: Icons.task_alt,
+                iconBgColor: _tertiaryContainer.withAlpha(26),
+                iconColor: _tertiary,
+                label: 'JURNAL',
+                value: '$doneCount',
+                suffix: '/$totalCount',
+                subtitle: totalCount == doneCount && totalCount > 0
+                    ? 'Semua selesai!'
+                    : doneCount > 0
+                    ? 'Hampir selesai'
+                    : 'Belum diisi',
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -470,86 +544,132 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   }
 
   Widget _buildScheduleSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return BlocBuilder<ScheduleBloc, ScheduleState>(
+      builder: (context, state) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    'Jadwal Hari Ini',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.5,
-                      color: _onSurface,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Jadwal Hari Ini',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.5,
+                          color: _onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _getFormattedDate(),
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: _onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _getFormattedDate(),
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: _onSurfaceVariant,
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SchedulePage(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      'Lihat Semua',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: _primary,
+                      ),
                     ),
                   ),
                 ],
               ),
-              TextButton(
-                onPressed: () {
-                  // TODO: Navigate to full schedule
-                },
+            ),
+            const SizedBox(height: 24),
+
+            // Schedule Items from API
+            if (state is ScheduleLoading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(color: _primary),
+                ),
+              )
+            else if (state is ScheduleError)
+              Padding(
+                padding: const EdgeInsets.all(24),
                 child: Text(
-                  'Lihat Semua',
+                  'Gagal memuat jadwal',
                   style: GoogleFonts.inter(
                     fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _primary,
+                    color: _onSurfaceVariant,
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
+              )
+            else if (state is ScheduleLoaded)
+              if (state.schedules.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: Text(
+                      'Tidak ada jadwal hari ini',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: _onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                // Show max 3 items on dashboard
+                ...state.schedules.take(3).map((schedule) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _buildScheduleItemFromApi(schedule),
+                  );
+                }),
+          ],
+        );
+      },
+    );
+  }
 
-        // Schedule Items
-        // Item 1 - DONE
-        _buildScheduleItem(
-          time: '07:30',
-          period: 'JP 1-2',
-          title: 'Matematika',
-          subtitle: 'Kelas 7A - Ruang 101',
-          status: ScheduleStatus.done,
-        ),
-        const SizedBox(height: 12),
+  /// Build schedule item from API data
+  Widget _buildScheduleItemFromApi(ScheduleItem schedule) {
+    // Convert JournalStatus to ScheduleStatus
+    ScheduleStatus status;
+    switch (schedule.statusJurnal) {
+      case JournalStatus.done:
+        status = ScheduleStatus.done;
+        break;
+      case JournalStatus.open:
+        status = ScheduleStatus.open;
+        break;
+      case JournalStatus.locked:
+        status = ScheduleStatus.locked;
+        break;
+    }
 
-        // Item 2 - OPEN (current)
-        _buildScheduleItem(
-          time: '09:15',
-          period: 'JP 3-4',
-          title: 'Bahasa Indonesia',
-          subtitle: 'Kelas 8B - Ruang 203',
-          status: ScheduleStatus.open,
-        ),
-        const SizedBox(height: 12),
-
-        // Item 3 - LOCKED
-        _buildScheduleItem(
-          time: '11:00',
-          period: 'JP 5-6',
-          title: 'IPA',
-          subtitle: 'Kelas 9C - Lab IPA',
-          status: ScheduleStatus.locked,
-        ),
-      ],
+    return _buildScheduleItem(
+      time: schedule.timeSlot.startTime,
+      period: schedule.keterangan ?? '',
+      title: schedule.subject,
+      subtitle: 'Kelas ${schedule.className}',
+      status: status,
     );
   }
 
@@ -923,45 +1043,60 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
   Widget _buildBottomNavBar() {
     return Positioned(
-      bottom: 0,
+      bottom: MediaQuery.of(context).padding.bottom > 0
+          ? MediaQuery.of(context).padding.bottom + 16
+          : 24,
       left: 0,
       right: 0,
-      child: ClipRRect(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(32),
-          topRight: Radius.circular(32),
-        ),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              12,
-              16,
-              MediaQuery.of(context).padding.bottom + 24,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.white.withAlpha(179), // 0.7 opacity
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(32),
-                topRight: Radius.circular(32),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF131B2E).withAlpha(15), // 0.06 opacity
-                  blurRadius: 40,
-                  offset: const Offset(0, -4),
+      child: Center(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    _primary.withAlpha(230), // primary blue 0.9 opacity
+                    _primaryContainer.withAlpha(
+                      230,
+                    ), // primary container 0.9 opacity
+                  ],
                 ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(0, Icons.grid_view, 'Dashboard'),
-                _buildNavItem(1, Icons.calendar_today, 'Jadwal'),
-                _buildNavItem(2, Icons.qr_code_scanner, 'Scan'),
-                _buildNavItem(3, Icons.person, 'Profil'),
-              ],
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(
+                  color: Colors.white.withAlpha(77), // 0.3 opacity
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: _primary.withAlpha(77), // 0.3 opacity
+                    blurRadius: 32,
+                    offset: const Offset(0, 8),
+                    spreadRadius: -4,
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withAlpha(26), // 0.1 opacity
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildNavItem(0, Icons.home_rounded),
+                  const SizedBox(width: 12),
+                  _buildNavItem(1, Icons.calendar_today_rounded),
+                  const SizedBox(width: 12),
+                  _buildNavItem(2, Icons.qr_code_scanner_rounded),
+                  const SizedBox(width: 12),
+                  _buildNavItem(3, Icons.person_rounded),
+                ],
+              ),
             ),
           ),
         ),
@@ -969,79 +1104,66 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label) {
+  Widget _buildNavItem(int index, IconData icon) {
     final isSelected = _selectedNavIndex == index;
 
     return GestureDetector(
       onTap: () {
         setState(() => _selectedNavIndex = index);
-        if (index == 3) {
-          // Profile - show logout dialog
-          _showLogoutDialog();
+        switch (index) {
+          case 1:
+            // Navigate to Schedule page
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SchedulePage()),
+            ).then((_) {
+              // Reset to home when returning
+              setState(() => _selectedNavIndex = 0);
+            });
+            break;
+          case 3:
+            _showLogoutDialog();
+            break;
         }
-        // TODO: Handle other navigation
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(
-          horizontal: isSelected ? 20 : 20,
-          vertical: 8,
-        ),
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          gradient: isSelected
-              ? const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF2563EB),
-                    Color(0xFF60A5FA),
-                  ], // blue-600 to blue-400
-                )
-              : null,
-          borderRadius: BorderRadius.circular(16),
+          color: isSelected
+              ? Colors.white
+              : Colors.white.withAlpha(26), // 0.1 opacity
+          borderRadius: BorderRadius.circular(18),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF3B82F6).withAlpha(51), // 0.2 opacity
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
+                    color: Colors.white.withAlpha(51), // 0.2 opacity
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ]
-              : null,
+              : [],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isSelected ? _getFilledIcon(icon) : icon,
-              color: isSelected
-                  ? Colors.white
-                  : const Color(0xFF94A3B8), // slate-400
-              size: 24,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label.toUpperCase(),
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-                color: isSelected ? Colors.white : const Color(0xFF94A3B8),
-              ),
-            ),
-          ],
+        child: Icon(
+          icon,
+          color: isSelected
+              ? _primary // primary blue when selected
+              : Colors.white.withAlpha(204), // 0.8 opacity when not selected
+          size: 24,
         ),
       ),
     );
   }
 
-  IconData _getFilledIcon(IconData icon) {
-    // Return filled version of icon
-    if (icon == Icons.grid_view) return Icons.grid_view;
-    if (icon == Icons.calendar_today) return Icons.calendar_today;
-    if (icon == Icons.qr_code_scanner) return Icons.qr_code_scanner;
-    if (icon == Icons.person) return Icons.person;
-    return icon;
+  void _handleCheckIn() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const CheckInPage(),
+    );
+    // BLoC will handle the submission and update UI via listener
   }
 
   void _showLogoutDialog() {

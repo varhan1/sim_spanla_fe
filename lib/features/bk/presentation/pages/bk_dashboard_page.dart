@@ -65,7 +65,7 @@ class _BkDashboardPageState extends State<BkDashboardPage> {
                   ),
                   // Content
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
                     sliver: SliverList(
                       delegate: SliverChildListDelegate([
                         // Welcome Section & Primary Action
@@ -782,45 +782,60 @@ class _BkDashboardPageState extends State<BkDashboardPage> {
 
   Widget _buildBottomNavBar() {
     return Positioned(
-      bottom: 0,
+      bottom: MediaQuery.of(context).padding.bottom > 0
+          ? MediaQuery.of(context).padding.bottom + 16
+          : 24,
       left: 0,
       right: 0,
-      child: ClipRRect(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(32),
-          topRight: Radius.circular(32),
-        ),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              12,
-              16,
-              MediaQuery.of(context).padding.bottom + 24,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.white.withAlpha(179), // 0.7 opacity
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(32),
-                topRight: Radius.circular(32),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF131B2E).withAlpha(15), // 0.06 opacity
-                  blurRadius: 40,
-                  offset: const Offset(0, -4),
+      child: Center(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    _primary.withAlpha(230), // primary blue 0.9 opacity
+                    _primaryContainer.withAlpha(
+                      230,
+                    ), // primary container 0.9 opacity
+                  ],
                 ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(0, Icons.grid_view, 'Dashboard'),
-                _buildNavItem(1, Icons.calendar_today, 'Jadwal'),
-                _buildNavItem(2, Icons.qr_code_scanner, 'Scan'),
-                _buildNavItem(3, Icons.person, 'Profil'),
-              ],
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(
+                  color: Colors.white.withAlpha(77), // 0.3 opacity
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: _primary.withAlpha(77), // 0.3 opacity
+                    blurRadius: 32,
+                    offset: const Offset(0, 8),
+                    spreadRadius: -4,
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withAlpha(26), // 0.1 opacity
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildNavItem(0, Icons.home_rounded),
+                  const SizedBox(width: 12),
+                  _buildNavItem(1, Icons.calendar_today_rounded),
+                  const SizedBox(width: 12),
+                  _buildNavItem(2, Icons.qr_code_scanner_rounded),
+                  const SizedBox(width: 12),
+                  _buildNavItem(3, Icons.person_rounded),
+                ],
+              ),
             ),
           ),
         ),
@@ -828,67 +843,42 @@ class _BkDashboardPageState extends State<BkDashboardPage> {
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label) {
+  Widget _buildNavItem(int index, IconData icon) {
     final isSelected = _selectedNavIndex == index;
 
     return GestureDetector(
       onTap: () {
         setState(() => _selectedNavIndex = index);
         if (index == 3) {
-          // Profile - show logout dialog
           _showLogoutDialog();
         }
         // TODO: Handle other navigation
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(
-          horizontal: isSelected ? 20 : 20,
-          vertical: 8,
-        ),
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          gradient: isSelected
-              ? const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF2563EB),
-                    Color(0xFF60A5FA),
-                  ], // blue-600 to blue-400
-                )
-              : null,
-          borderRadius: BorderRadius.circular(16),
+          color: isSelected
+              ? Colors.white
+              : Colors.white.withAlpha(26), // 0.1 opacity
+          borderRadius: BorderRadius.circular(18),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF3B82F6).withAlpha(51), // 0.2 opacity
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
+                    color: Colors.white.withAlpha(51), // 0.2 opacity
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ]
-              : null,
+              : [],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isSelected ? icon : icon,
-              color: isSelected
-                  ? Colors.white
-                  : const Color(0xFF94A3B8), // slate-400
-              size: 24,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label.toUpperCase(),
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-                color: isSelected ? Colors.white : const Color(0xFF94A3B8),
-              ),
-            ),
-          ],
+        child: Icon(
+          icon,
+          color: isSelected
+              ? _primary // primary blue when selected
+              : Colors.white.withAlpha(204), // 0.8 opacity when not selected
+          size: 24,
         ),
       ),
     );

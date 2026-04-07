@@ -9,6 +9,9 @@ import 'core/network/dio_client.dart';
 import 'features/auth/data/repositories/auth_repository.dart';
 import 'features/auth/presentation/bloc/bloc.dart';
 import 'features/auth/presentation/pages/login_page.dart';
+import 'features/teacher/data/repositories/attendance_repository.dart';
+import 'features/teacher/data/repositories/schedule_repository.dart';
+import 'features/teacher/presentation/bloc/bloc.dart';
 import 'features/teacher/presentation/pages/teacher_dashboard_page.dart';
 import 'features/bk/presentation/pages/bk_dashboard_page.dart';
 
@@ -28,24 +31,55 @@ void main() async {
   // Initialize DioClient (singleton)
   DioClient().init();
 
-  // Initialize repository
+  // Initialize repositories
   final authRepository = AuthRepository();
+  final attendanceRepository = AttendanceRepository();
+  final scheduleRepository = ScheduleRepository();
 
-  runApp(SimPanlaApp(authRepository: authRepository));
+  runApp(
+    SimPanlaApp(
+      authRepository: authRepository,
+      attendanceRepository: attendanceRepository,
+      scheduleRepository: scheduleRepository,
+    ),
+  );
 }
 
 class SimPanlaApp extends StatelessWidget {
   final AuthRepository authRepository;
+  final AttendanceRepository attendanceRepository;
+  final ScheduleRepository scheduleRepository;
 
-  const SimPanlaApp({super.key, required this.authRepository});
+  const SimPanlaApp({
+    super.key,
+    required this.authRepository,
+    required this.attendanceRepository,
+    required this.scheduleRepository,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return RepositoryProvider.value(
-      value: authRepository,
-      child: BlocProvider(
-        create: (context) =>
-            AuthBloc(authRepository: authRepository)..add(AuthCheckRequested()),
+    return MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider.value(value: authRepository),
+        RepositoryProvider.value(value: attendanceRepository),
+        RepositoryProvider.value(value: scheduleRepository),
+      ],
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider(
+            create: (context) =>
+                AuthBloc(authRepository: authRepository)
+                  ..add(AuthCheckRequested()),
+          ),
+          BlocProvider(
+            create: (context) =>
+                AttendanceBloc(repository: attendanceRepository),
+          ),
+          BlocProvider(
+            create: (context) => ScheduleBloc(repository: scheduleRepository),
+          ),
+        ],
         child: MaterialApp(
           title: 'SIM Panla',
           debugShowCheckedModeBanner: false,
