@@ -1,15 +1,44 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_text_styles.dart';
-import '../../../../core/constants/app_dimensions.dart';
-import '../../../../core/widgets/app_card.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../auth/presentation/bloc/bloc.dart';
 import '../../../auth/data/models/user.dart';
 
-/// BK Dashboard - Main screen for Guru BK (Counselor) role
-class BkDashboardPage extends StatelessWidget {
+/// BK Dashboard - Following stitch design (s_14_dashboard_bk_new_style)
+class BkDashboardPage extends StatefulWidget {
   const BkDashboardPage({super.key});
+
+  @override
+  State<BkDashboardPage> createState() => _BkDashboardPageState();
+}
+
+class _BkDashboardPageState extends State<BkDashboardPage> {
+  int _selectedNavIndex = 0;
+
+  // Colors from stitch design
+  static const Color _primary = Color(0xFF0040DF);
+  static const Color _primaryContainer = Color(0xFF2D5BFF);
+  static const Color _surface = Color(0xFFFAF8FF);
+  static const Color _surfaceContainerLow = Color(0xFFF2F3FF);
+  static const Color _surfaceContainerHigh = Color(0xFFE2E7FF);
+  static const Color _onSurface = Color(0xFF131B2E);
+  static const Color _onSurfaceVariant = Color(0xFF434655);
+  static const Color _outline = Color(0xFF737686);
+  static const Color _outlineVariant = Color(0xFFC3C6D7);
+  static const Color _tertiary = Color(0xFF7A1BC8);
+  static const Color _tertiaryContainer = Color(0xFF943FE2);
+  static const Color _secondary = Color(0xFF4648D4);
+  static const Color _secondaryContainer = Color(0xFF6063EE);
+  static const Color _error = Color(0xFFBA1A1A);
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Selamat Pagi';
+    if (hour < 15) return 'Selamat Siang';
+    if (hour < 18) return 'Selamat Sore';
+    return 'Selamat Malam';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,453 +50,838 @@ class BkDashboardPage extends StatelessWidget {
         }
 
         return Scaffold(
-          backgroundColor: AppColors.surface,
-          body: SafeArea(
-            child: CustomScrollView(
-              slivers: [
-                // App Bar
-                SliverAppBar(
-                  expandedHeight: 140,
-                  floating: false,
-                  pinned: true,
-                  backgroundColor: AppColors.surface,
-                  surfaceTintColor: Colors.transparent,
-                  flexibleSpace: FlexibleSpaceBar(
-                    background: _buildHeader(context, user),
-                  ),
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.notifications_outlined),
-                      color: AppColors.onSurfaceVariant,
-                      onPressed: () {
-                        // TODO: Notifications
-                      },
+          backgroundColor: _surface,
+          body: Stack(
+            children: [
+              // Main Content
+              CustomScrollView(
+                slivers: [
+                  // TopAppBar spacing
+                  const SliverToBoxAdapter(child: SizedBox(height: 96)),
+                  // Content
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        // Welcome Section & Primary Action
+                        _buildWelcomeSection(user),
+                        const SizedBox(height: 40),
+
+                        // Metrics Bento Grid (4 cards)
+                        _buildMetricsGrid(),
+                        const SizedBox(height: 40),
+
+                        // Content Layout: Critical Monitoring + System Health
+                        _buildContentSection(),
+                      ]),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.logout_outlined),
-                      color: AppColors.onSurfaceVariant,
-                      onPressed: () {
-                        _showLogoutDialog(context);
-                      },
-                    ),
-                    const SizedBox(width: AppDimensions.spacing2),
-                  ],
-                ),
-                // Content
-                SliverPadding(
-                  padding: const EdgeInsets.all(AppDimensions.spacing4),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      // Quick Stats
-                      _buildQuickStats(),
-                      const SizedBox(height: AppDimensions.spacing6),
-
-                      // Today's Counseling Schedule
-                      _buildSectionHeader(
-                        'Jadwal Konseling Hari Ini',
-                        onSeeAll: () {
-                          // TODO: Navigate to full schedule
-                        },
-                      ),
-                      const SizedBox(height: AppDimensions.spacing3),
-                      _buildCounselingSchedule(),
-                      const SizedBox(height: AppDimensions.spacing6),
-
-                      // Menu Grid
-                      _buildSectionHeader('Menu Utama'),
-                      const SizedBox(height: AppDimensions.spacing3),
-                      _buildMenuGrid(context),
-                      const SizedBox(height: AppDimensions.spacing6),
-
-                      // Students Needing Attention
-                      _buildSectionHeader(
-                        'Siswa Perlu Perhatian',
-                        onSeeAll: () {
-                          // TODO: Navigate to students list
-                        },
-                      ),
-                      const SizedBox(height: AppDimensions.spacing3),
-                      _buildStudentsNeedingAttention(),
-                      const SizedBox(height: AppDimensions.spacing8),
-                    ]),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+
+              // Fixed TopAppBar
+              _buildTopAppBar(user),
+
+              // Fixed BottomNavBar
+              _buildBottomNavBar(),
+            ],
           ),
         );
       },
     );
   }
 
-  Widget _buildHeader(BuildContext context, User? user) {
+  Widget _buildTopAppBar(User? user) {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Container(
+            padding: EdgeInsets.fromLTRB(
+              24,
+              MediaQuery.of(context).padding.top + 16,
+              24,
+              16,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(179), // 0.7 opacity
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF131B2E).withAlpha(15), // 0.06 opacity
+                  blurRadius: 40,
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                // Profile Avatar
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: _surfaceContainerHigh,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Center(
+                      child: Text(
+                        user?.shortName.substring(0, 1).toUpperCase() ?? 'B',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: _primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Greeting
+                Expanded(
+                  child: Text(
+                    '${_getGreeting()}, ${user?.shortName ?? 'Konselor'}',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                      color: _onSurface,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                // Notification Button
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      // TODO: Notifications
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Icon(
+                        Icons.notifications_outlined,
+                        color: _primaryContainer,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWelcomeSection(User? user) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Label
+        Text(
+          'OVERVIEW DASHBOARD',
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: _primaryContainer,
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Title
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                'Monitoring BK',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 36,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1,
+                  color: _onSurface,
+                ),
+              ),
+            ),
+            // Primary Action Button
+            _buildPrimaryActionButton(),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPrimaryActionButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          // TODO: Log new incident
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [_primary, _primaryContainer],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: _primary.withAlpha(51), // 0.2 opacity
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.add_circle, color: Colors.white, size: 20),
+              const SizedBox(width: 12),
+              Text(
+                'Catat Kasus',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricsGrid() {
+    return Column(
+      children: [
+        // Row 1
+        Row(
+          children: [
+            // Metric 1 - Total Kehadiran
+            Expanded(
+              child: _buildMetricCard(
+                icon: Icons.analytics,
+                iconBgColor: _primaryContainer.withAlpha(26),
+                iconColor: _primary,
+                value: '1,284',
+                label: 'TOTAL KEHADIRAN',
+                badge: '+12%',
+                badgeColor: const Color(0xFF16A34A), // green-600
+                badgeBgColor: const Color(0xFFDCFCE7), // green-50
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Metric 2 - Pelanggaran Aktif
+            Expanded(
+              child: _buildMetricCard(
+                icon: Icons.warning,
+                iconBgColor: _tertiaryContainer.withAlpha(26),
+                iconColor: _tertiary,
+                value: '42',
+                label: 'PELANGGARAN AKTIF',
+                badge: '-4%',
+                badgeColor: const Color(0xFFDC2626), // red-600
+                badgeBgColor: const Color(0xFFFEE2E2), // red-50
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        // Row 2
+        Row(
+          children: [
+            // Metric 3 - Skor Integritas
+            Expanded(
+              child: _buildMetricCard(
+                icon: Icons.verified_user,
+                iconBgColor: _secondaryContainer.withAlpha(26),
+                iconColor: _secondary,
+                value: '98.2',
+                valueSuffix: '%',
+                label: 'SKOR INTEGRITAS',
+                badge: 'Stabil',
+                badgeColor: const Color(0xFF16A34A),
+                badgeBgColor: const Color(0xFFDCFCE7),
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Metric 4 - Siswa Binaan
+            Expanded(
+              child: _buildMetricCard(
+                icon: Icons.rocket_launch,
+                iconBgColor: const Color(0xFFDBEAFE), // blue-100
+                iconColor: const Color(0xFF2563EB), // blue-600
+                value: '156',
+                label: 'SISWA BINAAN',
+                badge: 'Target',
+                badgeColor: const Color(0xFF2563EB),
+                badgeBgColor: const Color(0xFFDBEAFE),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricCard({
+    required IconData icon,
+    required Color iconBgColor,
+    required Color iconColor,
+    required String value,
+    String? valueSuffix,
+    required String label,
+    required String badge,
+    required Color badgeColor,
+    required Color badgeBgColor,
+  }) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(
-        AppDimensions.spacing4,
-        AppDimensions.spacing4,
-        AppDimensions.spacing4,
-        AppDimensions.spacing2,
+      height: 176,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(179), // glass effect
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF131B2E).withAlpha(15),
+            blurRadius: 40,
+          ),
+        ],
+        border: Border.all(
+          color: _outlineVariant.withAlpha(51), // 0.2 opacity
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          // Top Row: Icon + Badge
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Avatar
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: AppColors.izinContainer,
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: iconBgColor,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(icon, color: iconColor, size: 24),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: badgeBgColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: Text(
-                  user?.shortName.substring(0, 1).toUpperCase() ?? 'B',
-                  style: AppTextStyles.headlineSmall.copyWith(
-                    color: AppColors.izin,
+                  badge,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: badgeColor,
                   ),
                 ),
               ),
-              const SizedBox(width: AppDimensions.spacing3),
-              // Greeting
+            ],
+          ),
+          // Bottom: Value + Label
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    value,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 36,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -1,
+                      color: _onSurface,
+                    ),
+                  ),
+                  if (valueSuffix != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4, left: 2),
+                      child: Text(
+                        valueSuffix,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: _onSurface,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                  color: _onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContentSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Critical Monitoring Section
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Monitoring Kritis',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.5,
+                color: _onSurface,
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                // TODO: View all
+              },
+              child: Text(
+                'Lihat Semua',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: _primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+
+        // Violator List
+        _buildViolatorItem(
+          initials: 'AS',
+          name: 'Ahmad Santoso',
+          id: '#88291',
+          violation: '8X ALPA',
+          violationColor: const Color(0xFFDC2626), // red
+          bgColor: const Color(0xFFFEE2E2),
+        ),
+        const SizedBox(height: 16),
+        _buildViolatorItem(
+          initials: 'SM',
+          name: 'Sarah Maulida',
+          id: '#88295',
+          violation: '3X TERLAMBAT',
+          violationColor: const Color(0xFF2563EB), // blue
+          bgColor: const Color(0xFFDBEAFE),
+        ),
+        const SizedBox(height: 16),
+        _buildViolatorItem(
+          initials: 'RK',
+          name: 'Rudi Kurniawan',
+          id: '#88301',
+          violation: '5X IZIN',
+          violationColor: const Color(0xFFEA580C), // orange
+          bgColor: const Color(0xFFFED7AA),
+        ),
+        const SizedBox(height: 16),
+        _buildViolatorItem(
+          initials: 'DW',
+          name: 'Dewi Wulandari',
+          id: '#88310',
+          violation: '7X ALPA',
+          violationColor: const Color(0xFFDC2626),
+          bgColor: const Color(0xFFFEE2E2),
+        ),
+
+        const SizedBox(height: 40),
+
+        // System Health Section
+        _buildSystemHealthCard(),
+      ],
+    );
+  }
+
+  Widget _buildViolatorItem({
+    required String initials,
+    required String name,
+    required String id,
+    required String violation,
+    required Color violationColor,
+    required Color bgColor,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          // TODO: Navigate to detail
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: _surfaceContainerLow,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              // Avatar
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Center(
+                  child: Text(
+                    initials,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: violationColor,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _getGreeting(),
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.onSurfaceVariant,
+                      name,
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: _onSurface,
                       ),
                     ),
+                    const SizedBox(height: 2),
                     Text(
-                      user?.shortName ?? 'Konselor',
-                      style: AppTextStyles.titleLarge,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      'ID: $id',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: _onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Violation Badge
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(9999),
+                ),
+                child: Text(
+                  violation,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                    color: violationColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Chevron
+              Icon(Icons.chevron_right, color: _outline, size: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSystemHealthCard() {
+    const double progress = 0.75; // 75%
+
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(179),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _outlineVariant.withAlpha(51), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Kesehatan Sistem',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
+              color: _onSurface,
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Progress Circle + Info
+          Row(
+            children: [
+              // Progress Circle
+              SizedBox(
+                width: 192,
+                height: 192,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Background Circle
+                    SizedBox(
+                      width: 176,
+                      height: 176,
+                      child: CircularProgressIndicator(
+                        value: 1,
+                        strokeWidth: 8,
+                        backgroundColor: _surfaceContainerHigh,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          _surfaceContainerHigh,
+                        ),
+                      ),
+                    ),
+                    // Progress Circle
+                    SizedBox(
+                      width: 176,
+                      height: 176,
+                      child: CircularProgressIndicator(
+                        value: progress,
+                        strokeWidth: 12,
+                        backgroundColor: Colors.transparent,
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          _tertiary,
+                        ),
+                        strokeCap: StrokeCap.round,
+                      ),
+                    ),
+                    // Center Text
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${(progress * 100).toInt()}%',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 48,
+                            fontWeight: FontWeight.w800,
+                            color: _onSurface,
+                          ),
+                        ),
+                        Text(
+                          'TARGET TERCAPAI',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                            color: _onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 32),
+              // Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Efisiensi Mingguan',
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: _onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Monitoring BK berjalan dalam parameter optimal untuk minggu ke-3 berturut-turut.',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: _onSurfaceVariant,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Download Button
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          // TODO: Download report
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: _surfaceContainerHigh,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Center(
+                            child: Text(
+                              'Download Laporan',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(
+                                  0xFF0035BD,
+                                ), // on-primary-fixed-variant
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: AppDimensions.spacing2),
-          // Role badge
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppDimensions.spacing2,
-              vertical: AppDimensions.spacing1,
-            ),
-            decoration: BoxDecoration(
-              color: AppColors.izinContainer,
-              borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
-            ),
-            child: Text(
-              'Guru BK',
-              style: AppTextStyles.labelSmall.copyWith(
-                color: AppColors.izin,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildQuickStats() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatCard(
-            icon: Icons.people_outline,
-            value: '24',
-            label: 'Siswa Binaan',
-            color: AppColors.primary,
-          ),
+  Widget _buildBottomNavBar() {
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(32),
+          topRight: Radius.circular(32),
         ),
-        const SizedBox(width: AppDimensions.spacing3),
-        Expanded(
-          child: _buildStatCard(
-            icon: Icons.event_note,
-            value: '3',
-            label: 'Konseling Hari Ini',
-            color: AppColors.secondary,
-          ),
-        ),
-        const SizedBox(width: AppDimensions.spacing3),
-        Expanded(
-          child: _buildStatCard(
-            icon: Icons.warning_amber,
-            value: '5',
-            label: 'Perlu Tindakan',
-            color: AppColors.warning,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatCard({
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color color,
-  }) {
-    return AppCard.standard(
-      padding: const EdgeInsets.all(AppDimensions.spacing3),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: AppDimensions.spacing2),
-          Text(
-            value,
-            style: AppTextStyles.headlineMedium.copyWith(color: color),
-          ),
-          const SizedBox(height: AppDimensions.spacing1),
-          Text(
-            label,
-            style: AppTextStyles.labelSmall.copyWith(
-              color: AppColors.onSurfaceVariant,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title, {VoidCallback? onSeeAll}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(title, style: AppTextStyles.titleMedium),
-        if (onSeeAll != null)
-          TextButton(
-            onPressed: onSeeAll,
-            child: Text(
-              'Lihat Semua',
-              style: AppTextStyles.labelMedium.copyWith(
-                color: AppColors.primary,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildCounselingSchedule() {
-    // TODO: Get actual schedule from API
-    return Column(
-      children: [
-        _buildCounselingItem(
-          time: '09:00',
-          studentName: 'Ahmad Rizki',
-          className: '8A',
-          type: 'Konseling Individu',
-          status: 'Terjadwal',
-        ),
-        const SizedBox(height: AppDimensions.spacing2),
-        _buildCounselingItem(
-          time: '10:30',
-          studentName: 'Kelompok 7B',
-          className: '7B',
-          type: 'Bimbingan Kelompok',
-          status: 'Terjadwal',
-        ),
-        const SizedBox(height: AppDimensions.spacing2),
-        _buildCounselingItem(
-          time: '13:00',
-          studentName: 'Siti Nurhaliza',
-          className: '9C',
-          type: 'Konseling Karir',
-          status: 'Terjadwal',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCounselingItem({
-    required String time,
-    required String studentName,
-    required String className,
-    required String type,
-    required String status,
-  }) {
-    return AppCard.standard(
-      child: Row(
-        children: [
-          // Time
-          Container(
-            width: 56,
-            padding: const EdgeInsets.symmetric(
-              vertical: AppDimensions.spacing2,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Container(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              12,
+              16,
+              MediaQuery.of(context).padding.bottom + 24,
             ),
             decoration: BoxDecoration(
-              color: AppColors.primaryFixed,
-              borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  time,
-                  style: AppTextStyles.titleSmall.copyWith(
-                    color: AppColors.primary,
-                  ),
+              color: Colors.white.withAlpha(179), // 0.7 opacity
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(32),
+                topRight: Radius.circular(32),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF131B2E).withAlpha(15), // 0.06 opacity
+                  blurRadius: 40,
+                  offset: const Offset(0, -4),
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: AppDimensions.spacing3),
-          // Info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                Text(studentName, style: AppTextStyles.titleSmall),
-                const SizedBox(height: AppDimensions.spacing1),
-                Row(
-                  children: [
-                    Text(
-                      className,
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(width: AppDimensions.spacing2),
-                    Container(
-                      width: 4,
-                      height: 4,
-                      decoration: const BoxDecoration(
-                        color: AppColors.onSurfaceVariant,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: AppDimensions.spacing2),
-                    Text(
-                      type,
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
+                _buildNavItem(0, Icons.grid_view, 'Dashboard'),
+                _buildNavItem(1, Icons.calendar_today, 'Jadwal'),
+                _buildNavItem(2, Icons.qr_code_scanner, 'Scan'),
+                _buildNavItem(3, Icons.person, 'Profil'),
               ],
             ),
           ),
-          // Status badge
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppDimensions.spacing2,
-              vertical: AppDimensions.spacing1,
-            ),
-            decoration: BoxDecoration(
-              color: AppColors.infoContainer,
-              borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
-            ),
-            child: Text(
-              status,
-              style: AppTextStyles.labelSmall.copyWith(
-                color: AppColors.info,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildMenuGrid(BuildContext context) {
-    final List<_MenuItem> menuItems = [
-      _MenuItem(
-        icon: Icons.psychology,
-        label: 'Konseling',
-        color: AppColors.izin,
-        onTap: () {
-          // TODO: Navigate to counseling
-        },
-      ),
-      _MenuItem(
-        icon: Icons.groups,
-        label: 'Bimbingan',
-        color: AppColors.secondary,
-        onTap: () {
-          // TODO: Navigate to group guidance
-        },
-      ),
-      _MenuItem(
-        icon: Icons.assignment,
-        label: 'Catatan Siswa',
-        color: AppColors.primary,
-        onTap: () {
-          // TODO: Navigate to student notes
-        },
-      ),
-      _MenuItem(
-        icon: Icons.warning,
-        label: 'Pelanggaran',
-        color: AppColors.error,
-        onTap: () {
-          // TODO: Navigate to violations
-        },
-      ),
-      _MenuItem(
-        icon: Icons.analytics,
-        label: 'Laporan',
-        color: AppColors.info,
-        onTap: () {
-          // TODO: Navigate to reports
-        },
-      ),
-      _MenuItem(
-        icon: Icons.person,
-        label: 'Profil',
-        color: AppColors.onSurfaceVariant,
-        onTap: () {
-          // TODO: Navigate to profile
-        },
-      ),
-    ];
+  Widget _buildNavItem(int index, IconData icon, String label) {
+    final isSelected = _selectedNavIndex == index;
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        mainAxisSpacing: AppDimensions.spacing3,
-        crossAxisSpacing: AppDimensions.spacing3,
-        childAspectRatio: 1,
-      ),
-      itemCount: menuItems.length,
-      itemBuilder: (context, index) {
-        final item = menuItems[index];
-        return _buildMenuItem(item);
+    return GestureDetector(
+      onTap: () {
+        setState(() => _selectedNavIndex = index);
+        if (index == 3) {
+          // Profile - show logout dialog
+          _showLogoutDialog();
+        }
+        // TODO: Handle other navigation
       },
-    );
-  }
-
-  Widget _buildMenuItem(_MenuItem item) {
-    return Material(
-      color: AppColors.surfaceContainerLowest,
-      borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-      child: InkWell(
-        onTap: item.onTap,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: EdgeInsets.symmetric(
+          horizontal: isSelected ? 20 : 20,
+          vertical: 8,
+        ),
+        decoration: BoxDecoration(
+          gradient: isSelected
+              ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF2563EB),
+                    Color(0xFF60A5FA),
+                  ], // blue-600 to blue-400
+                )
+              : null,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF3B82F6).withAlpha(51), // 0.2 opacity
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: item.color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-              ),
-              child: Icon(item.icon, color: item.color, size: 24),
+            Icon(
+              isSelected ? icon : icon,
+              color: isSelected
+                  ? Colors.white
+                  : const Color(0xFF94A3B8), // slate-400
+              size: 24,
             ),
-            const SizedBox(height: AppDimensions.spacing2),
+            const SizedBox(height: 4),
             Text(
-              item.label,
-              style: AppTextStyles.labelMedium,
-              textAlign: TextAlign.center,
+              label.toUpperCase(),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+                color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+              ),
             ),
           ],
         ),
@@ -475,155 +889,45 @@ class BkDashboardPage extends StatelessWidget {
     );
   }
 
-  Widget _buildStudentsNeedingAttention() {
-    // TODO: Get actual data from API
-    return Column(
-      children: [
-        _buildStudentAlert(
-          name: 'Budi Santoso',
-          className: '8B',
-          issue: 'Absen 3 hari berturut-turut',
-          severity: AlertSeverity.high,
-        ),
-        const SizedBox(height: AppDimensions.spacing2),
-        _buildStudentAlert(
-          name: 'Dewi Lestari',
-          className: '7A',
-          issue: 'Nilai turun drastis',
-          severity: AlertSeverity.medium,
-        ),
-        const SizedBox(height: AppDimensions.spacing2),
-        _buildStudentAlert(
-          name: 'Eko Prasetyo',
-          className: '9D',
-          issue: 'Perlu bimbingan karir',
-          severity: AlertSeverity.low,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStudentAlert({
-    required String name,
-    required String className,
-    required String issue,
-    required AlertSeverity severity,
-  }) {
-    Color severityColor;
-    IconData severityIcon;
-
-    switch (severity) {
-      case AlertSeverity.high:
-        severityColor = AppColors.error;
-        severityIcon = Icons.error;
-        break;
-      case AlertSeverity.medium:
-        severityColor = AppColors.warning;
-        severityIcon = Icons.warning;
-        break;
-      case AlertSeverity.low:
-        severityColor = AppColors.info;
-        severityIcon = Icons.info;
-        break;
-    }
-
-    return AppCard.metric(
-      accentBarColor: severityColor,
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: severityColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
-            ),
-            child: Icon(severityIcon, color: severityColor, size: 20),
-          ),
-          const SizedBox(width: AppDimensions.spacing3),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(name, style: AppTextStyles.titleSmall),
-                    const SizedBox(width: AppDimensions.spacing2),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppDimensions.spacing1,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(
-                          AppDimensions.radiusXs,
-                        ),
-                      ),
-                      child: Text(className, style: AppTextStyles.labelSmall),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppDimensions.spacing1),
-                Text(
-                  issue,
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right, color: AppColors.onSurfaceVariant),
-        ],
-      ),
-    );
-  }
-
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Selamat Pagi';
-    if (hour < 15) return 'Selamat Siang';
-    if (hour < 18) return 'Selamat Sore';
-    return 'Selamat Malam';
-  }
-
-  void _showLogoutDialog(BuildContext context) {
+  void _showLogoutDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Apakah Anda yakin ingin keluar?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Logout',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin keluar?',
+          style: GoogleFonts.inter(),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
+            child: Text(
+              'Batal',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
+                color: _onSurfaceVariant,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               context.read<AuthBloc>().add(AuthLogoutRequested());
             },
-            child: Text('Logout', style: TextStyle(color: AppColors.error)),
+            child: Text(
+              'Logout',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
+                color: _error,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
-}
-
-enum AlertSeverity { high, medium, low }
-
-class _MenuItem {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-
-  _MenuItem({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
 }
