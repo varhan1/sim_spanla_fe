@@ -6,6 +6,7 @@ part 'user.g.dart';
 /// User model representing authenticated user data
 @JsonSerializable()
 class User extends Equatable {
+  final int id;
   final String nip;
   final String name;
   final String role;
@@ -26,6 +27,7 @@ class User extends Equatable {
   final String? updatedAt;
 
   const User({
+    required this.id,
     required this.nip,
     required this.name,
     required this.role,
@@ -74,6 +76,7 @@ class User extends Equatable {
 
   @override
   List<Object?> get props => [
+    id,
     nip,
     name,
     role,
@@ -86,6 +89,7 @@ class User extends Equatable {
 
   /// Copy with method for creating modified copies
   User copyWith({
+    int? id,
     String? nip,
     String? name,
     String? role,
@@ -96,6 +100,7 @@ class User extends Equatable {
     String? updatedAt,
   }) {
     return User(
+      id: id ?? this.id,
       nip: nip ?? this.nip,
       name: name ?? this.name,
       role: role ?? this.role,

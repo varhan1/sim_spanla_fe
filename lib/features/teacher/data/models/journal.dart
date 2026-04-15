@@ -2,6 +2,14 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'journal.g.dart';
 
+int _toInt(dynamic value) {
+  if (value == null) return 0;
+  if (value is int) return value;
+  if (value is double) return value.toInt();
+  if (value is String) return int.tryParse(value) ?? 0;
+  return 0;
+}
+
 /// Enum for student attendance status in KBM
 enum StudentStatus {
   @JsonValue('none')
@@ -74,8 +82,17 @@ class JournalScheduleInfo {
     required this.isInvalMock,
   });
 
-  factory JournalScheduleInfo.fromJson(Map<String, dynamic> json) =>
-      _$JournalScheduleInfoFromJson(json);
+  factory JournalScheduleInfo.fromJson(Map<String, dynamic> json) {
+    return JournalScheduleInfo(
+      id: _toInt(json['id']),
+      kelas: json['kelas']?.toString() ?? '',
+      mataPelajaran: json['mata_pelajaran']?.toString() ?? '',
+      isInvalMock:
+          json['is_inval_mock'] == true ||
+          json['is_inval_mock'] == 'true' ||
+          json['is_inval_mock'] == 1,
+    );
+  }
 
   Map<String, dynamic> toJson() => _$JournalScheduleInfoToJson(this);
 }
@@ -115,8 +132,25 @@ class JournalStudent {
     required this.sudahScanGerbang,
   });
 
-  factory JournalStudent.fromJson(Map<String, dynamic> json) =>
-      _$JournalStudentFromJson(json);
+  factory JournalStudent.fromJson(Map<String, dynamic> json) {
+    return JournalStudent(
+      id: _toInt(json['id']),
+      name: json['name']?.toString() ?? '',
+      nisn: json['nisn']?.toString() ?? '',
+      nis: json['nis']?.toString() ?? '',
+      classId: _toInt(json['class_id']),
+      statusAwal: json['status_awal']?.toString() ?? 'none',
+      isLocked:
+          json['is_locked'] == true ||
+          json['is_locked'] == 'true' ||
+          json['is_locked'] == 1,
+      keteranganIzin: json['keterangan_izin']?.toString(),
+      sudahScanGerbang:
+          json['sudah_scan_gerbang'] == true ||
+          json['sudah_scan_gerbang'] == 'true' ||
+          json['sudah_scan_gerbang'] == 1,
+    );
+  }
 
   Map<String, dynamic> toJson() => _$JournalStudentToJson(this);
 
@@ -167,8 +201,19 @@ class JournalStudentsData {
     required this.totalSudahScan,
   });
 
-  factory JournalStudentsData.fromJson(Map<String, dynamic> json) =>
-      _$JournalStudentsDataFromJson(json);
+  factory JournalStudentsData.fromJson(Map<String, dynamic> json) {
+    return JournalStudentsData(
+      schedule: JournalScheduleInfo.fromJson(
+        json['schedule'] as Map<String, dynamic>,
+      ),
+      students:
+          (json['students'] as List<dynamic>?)
+              ?.map((e) => JournalStudent.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      totalSudahScan: _toInt(json['total_sudah_scan']),
+    );
+  }
 
   Map<String, dynamic> toJson() => _$JournalStudentsDataToJson(this);
 }

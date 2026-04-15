@@ -1,13 +1,13 @@
 import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_text_styles.dart';
+
 import '../bloc/journal_bloc.dart';
 
-/// Journal Form Page - Material, cleanliness, and submission
-/// Design reference: stitch/s_07_journal_form
 class JournalFormPage extends StatefulWidget {
   const JournalFormPage({super.key});
 
@@ -18,9 +18,13 @@ class JournalFormPage extends StatefulWidget {
 class _JournalFormPageState extends State<JournalFormPage> {
   final _materiController = TextEditingController();
   final _imagePicker = ImagePicker();
-  String _selectedCleanliness = 'Bersih';
 
-  final _cleanlinessOptions = ['Sangat Bersih', 'Bersih', 'Cukup', 'Kurang'];
+  final _cleanlinessOptions = const [
+    'Sangat Bersih',
+    'Bersih',
+    'Cukup',
+    'Kurang',
+  ];
 
   @override
   void dispose() {
@@ -54,6 +58,74 @@ class _JournalFormPageState extends State<JournalFormPage> {
     }
   }
 
+  Future<void> _pickDocument() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        withData: true,
+        allowMultiple: false,
+        allowedExtensions: const [
+          'pdf',
+          'doc',
+          'docx',
+          'ppt',
+          'pptx',
+          'xls',
+          'xlsx',
+          'csv',
+          'jpg',
+          'jpeg',
+          'png',
+          'webp',
+          'zip',
+          'rar',
+        ],
+      );
+
+      if (!mounted) return;
+
+      if (result == null || result.files.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Pemilihan file dibatalkan')),
+        );
+        return;
+      }
+
+      final picked = result.files.single;
+      String? path = picked.path;
+
+      if (path == null && picked.bytes != null) {
+        final safeName = (picked.name.isEmpty ? 'lampiran.bin' : picked.name)
+            .replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+        final tempFile = File('${Directory.systemTemp.path}/$safeName');
+        await tempFile.writeAsBytes(picked.bytes!, flush: true);
+        if (!mounted) return;
+        path = tempFile.path;
+      }
+
+      if (path == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'File tidak didukung. Coba pilih dari penyimpanan lokal.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      context.read<JournalBloc>().add(SetAttachment(File(path)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('File terpilih: ${picked.name}')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memilih file: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<JournalBloc, JournalState>(
@@ -61,18 +133,11 @@ class _JournalFormPageState extends State<JournalFormPage> {
         if (state is JournalSubmitSuccess) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(state.message)),
-                ],
-              ),
-              backgroundColor: AppColors.success,
-              behavior: SnackBarBehavior.floating,
+              content: Text(state.message),
+              backgroundColor: const Color(0xFF16A34A),
             ),
           );
-          // Navigate back to schedule
+
           Navigator.of(context).popUntil(
             (route) => route.isFirst || route.settings.name == '/schedule',
           );
@@ -83,26 +148,15 @@ class _JournalFormPageState extends State<JournalFormPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(state.message),
-              backgroundColor: AppColors.error,
-              behavior: SnackBarBehavior.floating,
+              backgroundColor: const Color(0xFFB91C1C),
             ),
           );
         }
       },
       builder: (context, state) {
         if (state is JournalSubmitting) {
-          return Scaffold(
-            backgroundColor: AppColors.surface,
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(color: AppColors.primary),
-                  const SizedBox(height: 24),
-                  Text('Menyimpan jurnal...', style: AppTextStyles.titleMedium),
-                ],
-              ),
-            ),
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
@@ -110,122 +164,69 @@ class _JournalFormPageState extends State<JournalFormPage> {
           return const Scaffold(body: Center(child: Text('State tidak valid')));
         }
 
+        if (_materiController.text != state.material) {
+          _materiController.text = state.material;
+          _materiController.selection = TextSelection.fromPosition(
+            TextPosition(offset: _materiController.text.length),
+          );
+        }
+
+        final isValid = state.material.trim().isNotEmpty;
+
         return Scaffold(
-          backgroundColor: AppColors.surface,
-          body: CustomScrollView(
-            slivers: [
-              // App Bar
-              SliverAppBar(
-                pinned: true,
-                backgroundColor: Colors.white.withOpacity(0.9),
-                elevation: 0,
-                leading: IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(
-                    Icons.arrow_back,
-                    color: AppColors.onSurface,
-                  ),
-                ),
-                title: Text(
-                  'Form Jurnal',
-                  style: AppTextStyles.titleLarge.copyWith(
-                    color: AppColors.onSurface,
-                  ),
-                ),
-                actions: [
-                  IconButton(
-                    onPressed: () {},
-                    icon: const Icon(
-                      Icons.notifications_outlined,
-                      color: AppColors.onSurfaceVariant,
+          backgroundColor: const Color(0xFFF6F7FC),
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Color(0xFF121826)),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: Text(
+              'Form Jurnal',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF121826),
+                fontSize: 20,
+              ),
+            ),
+          ),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: [
+              _buildHeroCard(state),
+              const SizedBox(height: 14),
+              _buildMaterialCard(state),
+              const SizedBox(height: 14),
+              _buildAttendanceCard(state),
+              const SizedBox(height: 14),
+              _buildCleanlinessCard(state),
+              const SizedBox(height: 14),
+              _buildAttachmentCard(state),
+              const SizedBox(height: 24),
+              SizedBox(
+                height: 56,
+                child: ElevatedButton.icon(
+                  onPressed: isValid
+                      ? () => context.read<JournalBloc>().add(SubmitJournal())
+                      : null,
+                  icon: const Icon(Icons.save_rounded),
+                  label: Text(
+                    'Simpan Jurnal',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ],
-              ),
-
-              // Content
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header badges
-                      Row(
-                        children: [
-                          _buildBadge(
-                            'Tahun Ajaran 2024/2025',
-                            AppColors.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildBadge('Form S-07', AppColors.izin),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Title
-                      Text(
-                        'Teaching Journal.',
-                        style: AppTextStyles.displaySmall.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Lengkapi laporan KBM harian Anda.',
-                        style: AppTextStyles.bodyLarge.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      // Material Taught Card
-                      _buildMaterialCard(state),
-
-                      const SizedBox(height: 20),
-
-                      // Attendance Summary Card
-                      _buildAttendanceSummary(state),
-
-                      const SizedBox(height: 20),
-
-                      // Side by side: Cleanliness & Attachment
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: _buildCleanlinessCard(state)),
-                        ],
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      // Attachment Card
-                      _buildAttachmentCard(state),
-
-                      const SizedBox(height: 32),
-
-                      // Submit Button
-                      _buildSubmitButton(context, state),
-
-                      const SizedBox(height: 16),
-
-                      // View History Button
-                      Center(
-                        child: TextButton.icon(
-                          onPressed: () {
-                            // TODO: Navigate to history
-                          },
-                          icon: const Icon(Icons.history, size: 18),
-                          label: const Text('Lihat Riwayat Jurnal'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppColors.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 40),
-                    ],
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2250E8),
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: const Color(0xFFE2E8F5),
+                    disabledForegroundColor: const Color(0xFF94A3B8),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28),
+                    ),
                   ),
                 ),
               ),
@@ -236,363 +237,336 @@ class _JournalFormPageState extends State<JournalFormPage> {
     );
   }
 
-  Widget _buildBadge(String text, Color color) {
+  Widget _buildHeroCard(JournalStudentsLoaded state) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        text,
-        style: AppTextStyles.labelSmall.copyWith(
-          color: color,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF2250E8), Color(0xFF3B6AF8)],
         ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'SETUP JURNAL',
+            style: GoogleFonts.plusJakartaSans(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Laporan KBM Harian',
+            style: GoogleFonts.plusJakartaSans(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              height: 1.1,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _metaPill(Icons.groups_2_rounded, state.className),
+              _metaPill(Icons.menu_book_rounded, state.subjectName),
+              _metaPill(Icons.schedule_rounded, state.timeSlot),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metaPill(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildMaterialCard(JournalStudentsLoaded state) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.shadowAmbient,
-            blurRadius: 24,
-            offset: const Offset(0, 4),
+    return _sectionCard(
+      title: 'Materi Pembelajaran',
+      child: TextField(
+        controller: _materiController,
+        maxLines: 5,
+        onChanged: (value) {
+          context.read<JournalBloc>().add(UpdateMaterial(value));
+        },
+        decoration: InputDecoration(
+          hintText:
+              'Tuliskan topik, tujuan pembelajaran, dan metode yang digunakan hari ini...',
+          hintStyle: GoogleFonts.inter(
+            color: const Color(0xFF94A3B8),
+            fontSize: 13,
           ),
-        ],
+          filled: true,
+          fillColor: const Color(0xFFF9FAFF),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFE8ECF7)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFE8ECF7)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFF2250E8), width: 1.4),
+          ),
+        ),
+        style: GoogleFonts.inter(
+          color: const Color(0xFF1F2937),
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  Widget _buildAttendanceCard(JournalStudentsLoaded state) {
+    return _sectionCard(
+      title: 'Rekap Kehadiran',
+      child: Row(
         children: [
-          Text(
-            'DOKUMENTASI INTI',
-            style: AppTextStyles.labelSmall.copyWith(
-              color: AppColors.onSurfaceVariant,
-              letterSpacing: 1.5,
-              fontWeight: FontWeight.w700,
+          Expanded(
+            child: _attendanceItem(
+              label: 'Hadir',
+              count: state.hadirCount,
+              color: const Color(0xFF16A34A),
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Materi Pembelajaran',
-            style: AppTextStyles.headlineSmall.copyWith(
-              fontWeight: FontWeight.w700,
+          const SizedBox(width: 8),
+          Expanded(
+            child: _attendanceItem(
+              label: 'Sakit',
+              count: state.sakitCount,
+              color: const Color(0xFF0284C7),
             ),
           ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _materiController,
-            maxLines: 5,
-            decoration: InputDecoration(
-              hintText:
-                  'Jelaskan topik yang dibahas, tujuan pembelajaran yang dicapai, dan metode yang digunakan hari ini...',
-              hintStyle: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.onSurfaceVariant.withOpacity(0.5),
-              ),
-              filled: true,
-              fillColor: AppColors.surfaceContainerLow,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: AppColors.primary,
-                  width: 2,
-                ),
-              ),
-              contentPadding: const EdgeInsets.all(16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _attendanceItem(
+              label: 'Izin',
+              count: state.izinCount,
+              color: const Color(0xFFCA8A04),
             ),
-            style: AppTextStyles.bodyLarge,
-            onChanged: (value) {
-              context.read<JournalBloc>().add(UpdateMaterial(value));
-            },
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _attendanceItem(
+              label: 'Alpa',
+              count: state.alpaCount,
+              color: const Color(0xFFDC2626),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildAttendanceSummary(JournalStudentsLoaded state) {
+  Widget _attendanceItem({
+    required String label,
+    required int count,
+    required Color color,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFFF9FAFF),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE8ECF7)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Rekap Kehadiran',
-                style: AppTextStyles.titleLarge.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              Text(
-                'Kelas: ${state.className}',
-                style: AppTextStyles.bodyMedium,
-              ),
-            ],
+          Text(
+            label.toUpperCase(),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.9,
+              color: const Color(0xFF64748B),
+            ),
           ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              _buildSummaryItem('HADIR', state.hadirCount, AppColors.primary),
-              const SizedBox(width: 12),
-              _buildSummaryItem('SAKIT', state.sakitCount, AppColors.info),
-              const SizedBox(width: 12),
-              _buildSummaryItem('IZIN', state.izinCount, AppColors.izin),
-              const SizedBox(width: 12),
-              _buildSummaryItem('ALPA', state.alpaCount, AppColors.error),
-            ],
+          const SizedBox(height: 6),
+          Text(
+            '$count',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryItem(String label, int count, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Text(
-              label,
-              style: AppTextStyles.labelSmall.copyWith(
-                color: AppColors.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              count.toString().padLeft(2, '0'),
-              style: AppTextStyles.headlineMedium.copyWith(
-                color: color,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              height: 4,
-              width: 32,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
 
   Widget _buildCleanlinessCard(JournalStudentsLoaded state) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'STATUS LINGKUNGAN',
-            style: AppTextStyles.labelSmall.copyWith(
-              color: AppColors.onSurfaceVariant,
-              letterSpacing: 1.5,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Kebersihan Kelas',
-            style: AppTextStyles.titleMedium.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _selectedCleanliness,
-                isExpanded: true,
-                icon: const Icon(Icons.expand_more),
-                items: _cleanlinessOptions.map((option) {
-                  return DropdownMenuItem(
-                    value: option,
-                    child: Text(option, style: AppTextStyles.bodyLarge),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _selectedCleanliness = value;
-                    });
-                    context.read<JournalBloc>().add(UpdateCleanliness(value));
-                  }
-                },
+    return _sectionCard(
+      title: 'Kebersihan Kelas',
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: _cleanlinessOptions.map((option) {
+          final selected = state.cleanliness == option;
+          return ChoiceChip(
+            selected: selected,
+            label: Text(
+              option,
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w700,
+                color: selected
+                    ? const Color(0xFF2250E8)
+                    : const Color(0xFF64748B),
               ),
             ),
-          ),
-        ],
+            backgroundColor: const Color(0xFFF3F5FF),
+            selectedColor: const Color(0xFFE8EEFF),
+            side: BorderSide(
+              color: selected ? const Color(0xFF2250E8) : Colors.transparent,
+            ),
+            onSelected: (_) {
+              context.read<JournalBloc>().add(UpdateCleanliness(option));
+            },
+          );
+        }).toList(),
       ),
     );
   }
 
   Widget _buildAttachmentCard(JournalStudentsLoaded state) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.shadowAmbient,
-            blurRadius: 24,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return _sectionCard(
+      title: 'Lampiran',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Lampiran',
-            style: AppTextStyles.titleMedium.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Upload area
-          GestureDetector(
-            onTap: () => _showAttachmentOptions(),
+          InkWell(
+            onTap: _showAttachmentOptions,
+            borderRadius: BorderRadius.circular(16),
             child: Container(
-              padding: const EdgeInsets.all(32),
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                border: Border.all(
-                  color: AppColors.outlineVariant.withOpacity(0.3),
-                  width: 2,
-                  style: BorderStyle.solid,
-                ),
-                borderRadius: BorderRadius.circular(12),
+                color: const Color(0xFFF9FAFF),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE8ECF7)),
               ),
-              child: Column(
+              child: Row(
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.05),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.cloud_upload_outlined,
-                      color: AppColors.primary,
-                      size: 24,
-                    ),
+                  const Icon(
+                    Icons.attachment_rounded,
+                    color: Color(0xFF2250E8),
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Upload Foto/File',
-                    style: AppTextStyles.titleSmall.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Tap untuk memilih file',
-                    style: AppTextStyles.bodySmall.copyWith(
-                      color: AppColors.onSurfaceVariant,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      state.attachment == null
+                          ? 'Tap untuk pilih foto atau dokumen'
+                          : _fileNameFromPath(state.attachment!.path),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        color: state.attachment == null
+                            ? const Color(0xFF8A93A8)
+                            : const Color(0xFF121826),
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
           ),
-
-          // File preview
           if (state.attachment != null) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(12),
+                color: const Color(0xFFF3F5FF),
+                borderRadius: BorderRadius.circular(14),
               ),
               child: Row(
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      image: DecorationImage(
-                        image: FileImage(state.attachment!),
-                        fit: BoxFit.cover,
+                  Icon(
+                    _attachmentIcon(state.attachment!.path),
+                    color: const Color(0xFF2250E8),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _attachmentTypeLabel(state.attachment!.path),
+                      style: GoogleFonts.inter(
+                        color: const Color(0xFF475569),
+                        fontSize: 12,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          state.attachment!.path.split('/').last,
-                          style: AppTextStyles.labelMedium.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          'Foto lampiran',
-                          style: AppTextStyles.bodySmall.copyWith(
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                   IconButton(
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Color(0xFFDC2626),
+                    ),
                     onPressed: () {
                       context.read<JournalBloc>().add(SetAttachment(null));
                     },
-                    icon: const Icon(
-                      Icons.close,
-                      color: AppColors.error,
-                      size: 20,
-                    ),
                   ),
                 ],
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionCard({required String title, required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE8ECF7)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.plusJakartaSans(
+              color: const Color(0xFF121826),
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(height: 10),
+          child,
         ],
       ),
     );
@@ -601,128 +575,114 @@ class _JournalFormPageState extends State<JournalFormPage> {
   void _showAttachmentOptions() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Pilih Sumber',
-              style: AppTextStyles.titleLarge.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.camera_alt, color: AppColors.primary),
-              ),
-              title: Text('Kamera', style: AppTextStyles.titleMedium),
-              subtitle: Text(
-                'Ambil foto langsung',
-                style: AppTextStyles.bodySmall,
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                _takePhoto();
-              },
-            ),
-            const SizedBox(height: 8),
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.info.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.photo_library, color: AppColors.info),
-              ),
-              title: Text('Galeri', style: AppTextStyles.titleMedium),
-              subtitle: Text(
-                'Pilih dari galeri',
-                style: AppTextStyles.bodySmall,
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage();
-              },
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 42,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt_rounded),
+                  title: Text(
+                    'Kamera',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Ambil foto langsung',
+                    style: GoogleFonts.inter(),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _takePhoto();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library_rounded),
+                  title: Text(
+                    'Galeri',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Pilih gambar dari galeri',
+                    style: GoogleFonts.inter(),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickImage();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.description_rounded),
+                  title: Text(
+                    'Dokumen/File',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'PDF, Word, Excel, PPT, ZIP, dan lainnya',
+                    style: GoogleFonts.inter(),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await Future<void>.delayed(
+                      const Duration(milliseconds: 220),
+                    );
+                    if (!mounted) return;
+                    _pickDocument();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildSubmitButton(BuildContext context, JournalStudentsLoaded state) {
-    final isValid = _materiController.text.trim().isNotEmpty;
+  IconData _attachmentIcon(String path) {
+    final ext = _fileExtension(path);
+    if (['jpg', 'jpeg', 'png', 'webp'].contains(ext)) return Icons.image;
+    if (ext == 'pdf') return Icons.picture_as_pdf;
+    if (['doc', 'docx'].contains(ext)) return Icons.description;
+    if (['xls', 'xlsx', 'csv'].contains(ext)) return Icons.table_chart;
+    if (['ppt', 'pptx'].contains(ext)) return Icons.slideshow;
+    if (['zip', 'rar'].contains(ext)) return Icons.folder_zip;
+    return Icons.insert_drive_file;
+  }
 
-    return GestureDetector(
-      onTap: isValid
-          ? () {
-              context.read<JournalBloc>().add(SubmitJournal());
-            }
-          : null,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        decoration: BoxDecoration(
-          gradient: isValid
-              ? const LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: [Color(0xFF0040DF), Color(0xFF4648D4)],
-                )
-              : null,
-          color: isValid ? null : AppColors.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: isValid
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFF0040DF).withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.save,
-              color: isValid ? Colors.white : AppColors.onSurfaceVariant,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'Simpan Jurnal',
-              style: AppTextStyles.titleLarge.copyWith(
-                color: isValid ? Colors.white : AppColors.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  String _attachmentTypeLabel(String path) {
+    final ext = _fileExtension(path).toUpperCase();
+    if (ext.isEmpty) return 'File lampiran';
+    return 'File $ext';
+  }
+
+  String _fileExtension(String path) {
+    final dot = path.lastIndexOf('.');
+    if (dot < 0 || dot == path.length - 1) return '';
+    return path.substring(dot + 1).toLowerCase();
+  }
+
+  String _fileNameFromPath(String path) {
+    final parts = path.split(RegExp(r'[\\/]'));
+    if (parts.isEmpty) return path;
+    return parts.last;
   }
 }

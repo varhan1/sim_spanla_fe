@@ -136,8 +136,4 @@ class AppColors {
   /// Terlambat - Late
   static const Color terlambat = warning;
   static const Color terlambatContainer = warningContainer;
-
-  /// Keluarga - Family matters
-  static const Color keluarga = Color(0xFF795548);
-  static const Color keluargaContainer = Color(0xFFD7CCC8);
 }

@@ -7,6 +7,10 @@ import '../../../auth/data/models/user.dart';
 import '../../data/models/schedule.dart';
 import '../bloc/bloc.dart';
 import 'journal_student_list_page.dart';
+import 'journal_history_detail_page.dart';
+import 'notification_page.dart';
+import 'qr_scanner_page.dart';
+import '../bloc/qr_scan_bloc.dart';
 
 /// Schedule Page - Following stitch design (s_05_schedule_screen_new_style)
 class SchedulePage extends StatefulWidget {
@@ -18,6 +22,7 @@ class SchedulePage extends StatefulWidget {
 
 class _SchedulePageState extends State<SchedulePage> {
   int _selectedNavIndex = 1; // Calendar tab selected
+  int? _notifStartedForUserId;
 
   // Colors from stitch design
   static const Color _primary = Color(0xFF0040DF);
@@ -36,6 +41,31 @@ class _SchedulePageState extends State<SchedulePage> {
   static const Color _errorContainer = Color(0xFFFFDAD6);
   static const Color _onErrorContainer = Color(0xFF93000A);
 
+  Future<void> _onRefresh() async {
+    final scheduleBloc = context.read<ScheduleBloc>();
+    String? dateParam;
+
+    final currentState = scheduleBloc.state;
+    if (currentState is ScheduleLoaded) {
+      final d = currentState.selectedDate;
+      dateParam =
+          '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    }
+
+    scheduleBloc.add(LoadSchedules(date: dateParam));
+    await scheduleBloc.stream.firstWhere(
+      (state) => state is ScheduleLoaded || state is ScheduleError,
+    );
+  }
+
+  void _ensureNotificationRealtime(User? user) {
+    if (user == null) return;
+    if (_notifStartedForUserId == user.id) return;
+
+    _notifStartedForUserId = user.id;
+    context.read<NotificationBloc>().add(NotificationStarted(user.id));
+  }
+
   @override
   void initState() {
     super.initState();
@@ -50,6 +80,7 @@ class _SchedulePageState extends State<SchedulePage> {
         User? user;
         if (authState is AuthAuthenticated) {
           user = authState.user;
+          _ensureNotificationRealtime(user);
         }
 
         final topPadding = MediaQuery.of(context).padding.top;
@@ -60,38 +91,39 @@ class _SchedulePageState extends State<SchedulePage> {
           body: Stack(
             children: [
               // Main Content
-              CustomScrollView(
-                slivers: [
-                  // TopAppBar spacing
-                  SliverToBoxAdapter(
-                    child: SizedBox(height: appBarHeight + 16),
-                  ),
-                  // Content
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
-                    sliver: SliverList(
-                      delegate: SliverChildListDelegate([
-                        // Header Section
-                        _buildHeaderSection(),
-                        const SizedBox(height: 32),
-
-                        // Date Picker
-                        _buildDatePicker(),
-                        const SizedBox(height: 32),
-
-                        // Schedule Timeline
-                        _buildScheduleTimeline(),
-                      ]),
+              RefreshIndicator(
+                onRefresh: _onRefresh,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    // TopAppBar spacing
+                    SliverToBoxAdapter(
+                      child: SizedBox(height: appBarHeight + 16),
                     ),
-                  ),
-                ],
+                    // Content
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          // Header Section
+                          _buildHeaderSection(),
+                          const SizedBox(height: 32),
+
+                          // Date Picker
+                          _buildDatePicker(),
+                          const SizedBox(height: 32),
+
+                          // Schedule Timeline
+                          _buildScheduleTimeline(),
+                        ]),
+                      ),
+                    ),
+                  ],
+                ),
               ),
 
               // Fixed TopAppBar
               _buildTopAppBar(user),
-
-              // Fixed BottomNavBar
-              _buildBottomNavBar(),
             ],
           ),
         );
@@ -125,25 +157,18 @@ class _SchedulePageState extends State<SchedulePage> {
             ),
             child: Row(
               children: [
-                // Back Button
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () => Navigator.pop(context),
+                // Icon
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        color: _surfaceContainerHigh,
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back,
-                        color: _onSurface,
-                        size: 20,
-                      ),
-                    ),
+                    color: _surfaceContainerHigh,
+                  ),
+                  child: const Icon(
+                    Icons.calendar_today_rounded,
+                    color: _onSurface,
+                    size: 20,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -159,25 +184,69 @@ class _SchedulePageState extends State<SchedulePage> {
                     ),
                   ),
                 ),
-                // Notification Button
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {},
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
+                BlocBuilder<NotificationBloc, NotificationState>(
+                  builder: (context, notifState) {
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const NotificationPage(),
+                            ),
+                          ).then((_) {
+                            if (!mounted) return;
+                            context.read<NotificationBloc>().add(
+                              const NotificationUnreadRequested(),
+                            );
+                          });
+                        },
                         borderRadius: BorderRadius.circular(20),
+                        child: SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              const Center(
+                                child: Icon(
+                                  Icons.notifications_outlined,
+                                  color: _primaryContainer,
+                                  size: 24,
+                                ),
+                              ),
+                              if (notifState.unreadCount > 0)
+                                Positioned(
+                                  right: 2,
+                                  top: 2,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFDC2626),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      notifState.unreadCount > 99
+                                          ? '99+'
+                                          : '${notifState.unreadCount}',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 9,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.notifications_outlined,
-                        color: _primaryContainer,
-                        size: 24,
-                      ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -506,9 +575,28 @@ class _SchedulePageState extends State<SchedulePage> {
   }
 
   Widget _buildTimelineItem(ScheduleItem schedule) {
-    final isDone = schedule.statusJurnal == JournalStatus.done;
-    final isOpen = schedule.statusJurnal == JournalStatus.open;
-    final isLocked = schedule.statusJurnal == JournalStatus.locked;
+    bool isDone = schedule.statusJurnal == JournalStatus.done;
+    bool isOpen = schedule.statusJurnal == JournalStatus.open;
+    bool isLocked = schedule.statusJurnal == JournalStatus.locked;
+
+    // OVERRIDE DARI FRONTEND: Cek apakah user sudah absen masuk hari ini.
+    // Ini memastikan tombol tetap terkunci meskipun API Production mengembalikan 'OPEN'.
+    final attState = context.read<AttendanceBloc>().state;
+    if (attState is AttendanceStatusLoaded &&
+        !attState.hasCheckedIn &&
+        isOpen) {
+      isOpen = false;
+      isLocked = true;
+      schedule = ScheduleItem(
+        id: schedule.id,
+        statusJurnal: JournalStatus.locked,
+        subject: schedule.subject,
+        className: schedule.className,
+        timeSlot: schedule.timeSlot,
+        keterangan: 'Belum Check-In',
+        journalId: schedule.journalId,
+      );
+    }
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -563,6 +651,14 @@ class _SchedulePageState extends State<SchedulePage> {
     bool isOpen,
     bool isLocked,
   ) {
+    // Override lagi di dalam card jika state masih OPEN (kalau _buildScheduleCard dipanggil langsung tanpa lewat _buildTimelineItem)
+    final attState = context.read<AttendanceBloc>().state;
+    if (attState is AttendanceStatusLoaded &&
+        !attState.hasCheckedIn &&
+        isOpen) {
+      isOpen = false;
+      isLocked = true;
+    }
     return Opacity(
       opacity: isLocked ? 0.6 : 1.0,
       child: Container(
@@ -658,29 +754,44 @@ class _SchedulePageState extends State<SchedulePage> {
                 ],
               ],
             ),
-            // Action button for OPEN status
-            if (isOpen) ...[
+            // Action button for OPEN or LOCKED status
+            if (isOpen || isLocked) ...[
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => JournalStudentListPageWithFAB(
-                          scheduleId: schedule.id,
-                          className: schedule.className,
-                          subjectName: schedule.subject,
-                          timeSlot:
-                              '${schedule.timeSlot.startTime} - ${schedule.timeSlot.endTime}',
+                    if (isLocked) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            schedule.keterangan ??
+                                'Silakan Check-In terlebih dahulu.',
+                          ),
+                          backgroundColor: _errorContainer,
+                          behavior: SnackBarBehavior.floating,
                         ),
-                      ),
-                    );
+                      );
+                    } else if (isOpen) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => JournalStudentListPageWithFAB(
+                            scheduleId: schedule.id,
+                            className: schedule.className,
+                            subjectName: schedule.subject,
+                            timeSlot:
+                                '${schedule.timeSlot.startTime} - ${schedule.timeSlot.endTime}',
+                          ),
+                        ),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _primary,
-                    foregroundColor: Colors.white,
+                    backgroundColor: isOpen ? _primary : Colors.grey.shade300,
+                    foregroundColor: isOpen
+                        ? Colors.white
+                        : Colors.grey.shade600,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
@@ -688,7 +799,48 @@ class _SchedulePageState extends State<SchedulePage> {
                     ),
                   ),
                   child: Text(
-                    'Isi Jurnal',
+                    isLocked ? 'Terkunci (Belum Check-In)' : 'Isi Jurnal',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            // Action button for DONE status
+            if (isDone) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () {
+                    // Navigate to Journal History Detail Page
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => JournalHistoryDetailPage(
+                          journalId: schedule.journalId ?? 0,
+                          subjectName: schedule.subject,
+                          className: schedule.className,
+                          date:
+                              _getMonthYear(), // Can pass exact date from selectedDate
+                          timeSlot:
+                              '${schedule.timeSlot.startTime} - ${schedule.timeSlot.endTime}',
+                        ),
+                      ),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _primary,
+                    side: const BorderSide(color: _primary),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    'Lihat Riwayat Jurnal',
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -739,105 +891,6 @@ class _SchedulePageState extends State<SchedulePage> {
           fontWeight: FontWeight.w700,
           letterSpacing: 0.5,
           color: textColor,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNavBar() {
-    return Positioned(
-      bottom: MediaQuery.of(context).padding.bottom > 0
-          ? MediaQuery.of(context).padding.bottom + 16
-          : 24,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(30),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    _primary.withAlpha(230),
-                    _primaryContainer.withAlpha(230),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(
-                  color: Colors.white.withAlpha(77),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: _primary.withAlpha(77),
-                    blurRadius: 32,
-                    offset: const Offset(0, 8),
-                    spreadRadius: -4,
-                  ),
-                  BoxShadow(
-                    color: Colors.black.withAlpha(26),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildNavItem(0, Icons.home_rounded),
-                  const SizedBox(width: 12),
-                  _buildNavItem(1, Icons.calendar_today_rounded),
-                  const SizedBox(width: 12),
-                  _buildNavItem(2, Icons.qr_code_scanner_rounded),
-                  const SizedBox(width: 12),
-                  _buildNavItem(3, Icons.person_rounded),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(int index, IconData icon) {
-    final isSelected = _selectedNavIndex == index;
-
-    return GestureDetector(
-      onTap: () {
-        if (index == 0) {
-          // Go back to dashboard
-          Navigator.pop(context);
-        } else {
-          setState(() => _selectedNavIndex = index);
-        }
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.white.withAlpha(26),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Colors.white.withAlpha(51),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : [],
-        ),
-        child: Icon(
-          icon,
-          color: isSelected ? _primary : Colors.white.withAlpha(204),
-          size: 24,
         ),
       ),
     );

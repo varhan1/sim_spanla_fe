@@ -17,7 +17,7 @@ class ScheduleRepository {
       }
 
       final response = await _dioClient.get(
-        '/teacher/schedules',
+        '/schedules',
         queryParameters: queryParams,
       );
 

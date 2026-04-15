@@ -130,21 +130,11 @@ class _CheckInPageState extends State<CheckInPage> {
     return Column(
       children: [
         Text(
-          'Teacher Check-In',
+          'Presensi Guru',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 24,
             fontWeight: FontWeight.w800,
             color: _onSurface,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Class: History of Modern Art (09:00 AM)',
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: _onSurfaceVariant,
           ),
           textAlign: TextAlign.center,
         ),
@@ -158,8 +148,8 @@ class _CheckInPageState extends State<CheckInPage> {
         // Hadir Option
         _buildOptionCard(
           status: 'hadir',
-          title: '✅ Hadir',
-          subtitle: 'Ready to start session',
+          title: 'Hadir',
+          subtitle: 'Siap memulai sesi mengajar',
           gradientColors: const [
             Color(0xFF4ADE80),
             Color(0xFF22C55E),
@@ -171,8 +161,8 @@ class _CheckInPageState extends State<CheckInPage> {
         // Izin/Sakit Option
         _buildOptionCard(
           status: 'tidak_hadir',
-          title: '❌ Izin/Sakit',
-          subtitle: 'Unable to attend',
+          title: 'Izin/Sakit',
+          subtitle: 'Tidak dapat mengajar hari ini',
           gradientColors: const [
             Color(0xFFFB923C),
             Color(0xFFEF4444),

@@ -2,6 +2,14 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'schedule.g.dart';
 
+int _toInt(dynamic value) {
+  if (value == null) return 0;
+  if (value is int) return value;
+  if (value is double) return value.toInt();
+  if (value is String) return int.tryParse(value) ?? 0;
+  return 0;
+}
+
 /// Enum for journal status
 enum JournalStatus {
   @JsonValue('DONE')
@@ -59,8 +67,26 @@ class ScheduleItem {
     this.journalId,
   });
 
-  factory ScheduleItem.fromJson(Map<String, dynamic> json) =>
-      _$ScheduleItemFromJson(json);
+  factory ScheduleItem.fromJson(Map<String, dynamic> json) {
+    JournalStatus status;
+    final statusStr = json['status_jurnal']?.toString();
+    if (statusStr == 'DONE')
+      status = JournalStatus.done;
+    else if (statusStr == 'OPEN')
+      status = JournalStatus.open;
+    else
+      status = JournalStatus.locked;
+
+    return ScheduleItem(
+      id: _toInt(json['id']),
+      statusJurnal: status,
+      subject: json['subject']?.toString() ?? '',
+      className: json['className']?.toString() ?? '',
+      timeSlot: TimeSlot.fromJson(json['time_slot'] as Map<String, dynamic>),
+      keterangan: json['keterangan']?.toString(),
+      journalId: json['journal_id'] != null ? _toInt(json['journal_id']) : null,
+    );
+  }
 
   Map<String, dynamic> toJson() => _$ScheduleItemToJson(this);
 }

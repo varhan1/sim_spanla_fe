@@ -4,8 +4,13 @@ class ApiConstants {
 
   // ========== BASE URLs ==========
 
-  /// Production API Base URL
-  static const String baseUrl = 'https://smpn8.my.id';
+  /// Local API Base URL (For physical device testing, use your machine's local IP)
+  // Gunakan IP Address komputer yang aktif saat ini
+  static const String baseUrl =
+      'http://192.168.1.8:8000'; // Make sure to run `php artisan serve --host=0.0.0.0`
+
+  /// Production API Base URL (Commented out for local testing)
+  // static const String baseUrl = 'https://smpn8.my.id';
 
   /// API Version prefix
   static const String apiVersion = 'v1';
@@ -18,7 +23,7 @@ class ApiConstants {
   // Auth Endpoints
   static const String login = '/login';
   static const String logout = '/logout';
-  static const String me = '/me';
+  static const String me = '/user';
 
   // Dashboard Endpoints
   static const String dashboardStats = '/dashboard/stats';
@@ -72,8 +77,25 @@ class ApiConstants {
 
   // Notification Endpoints
   static const String notifications = '/notifications';
+  static const String notificationUnreadCount = '/notifications/unread-count';
   static const String notificationMarkRead = '/notifications/{id}/read';
   static const String notificationMarkAllRead = '/notifications/mark-all-read';
+  static const String notificationDelete = '/notifications/{id}';
+  static const String notificationClearAll = '/notifications/clear-all';
+
+  // Grade Endpoints
+  static const String gradesMeta = '/grades/meta';
+  static const String gradesStudents = '/grades/students';
+  static const String gradesScores = '/grades/scores';
+  static const String gradesSummary = '/grades/summary';
+  static const String gradesBulkUpsert = '/grades/scores/bulk-upsert';
+  static const String gradesFinishLock = '/grades/finish-lock';
+
+  // Realtime (Laravel Reverb)
+  static const String reverbAppKey = 'pwbsq25fnsp4avv7psnl';
+  static const String reverbHost = '192.168.1.8';
+  static const int reverbPort = 8080;
+  static const bool reverbUseTls = false;
 
   // ========== HTTP TIMEOUTS ==========
 

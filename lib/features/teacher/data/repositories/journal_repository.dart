@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import '../../../../core/network/dio_client.dart';
 import '../models/journal.dart';
+import '../models/journal_history.dart';
 
 /// Repository for Journal API interactions
 class JournalRepository {
@@ -83,6 +84,33 @@ class JournalRepository {
         throw Exception((e.error as ApiException).message);
       }
       // Check for specific error responses
+      if (e.response?.data != null) {
+        final errorData = e.response!.data;
+        if (errorData is Map && errorData.containsKey('message')) {
+          throw Exception(errorData['message']);
+        }
+      }
+      throw Exception('Terjadi kesalahan jaringan');
+    }
+  }
+
+  /// Get Journal History Detail
+  /// GET /journal/history/{journal_id}
+  Future<JournalHistoryResponse> getJournalHistory(int journalId) async {
+    try {
+      final response = await _client.get('/journal/history/$journalId');
+
+      if (response.statusCode == 200) {
+        return JournalHistoryResponse.fromJson(response.data);
+      }
+
+      throw Exception(
+        'Gagal mengambil data riwayat jurnal: ${response.statusCode}',
+      );
+    } on DioException catch (e) {
+      if (e.error is ApiException) {
+        throw Exception((e.error as ApiException).message);
+      }
       if (e.response?.data != null) {
         final errorData = e.response!.data;
         if (errorData is Map && errorData.containsKey('message')) {

@@ -2,12 +2,19 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../../auth/presentation/bloc/bloc.dart';
 import '../../../auth/data/models/user.dart';
+import '../../data/repositories/grade_repository.dart';
 import '../../data/models/schedule.dart';
 import '../bloc/bloc.dart';
 import 'check_in_page.dart';
 import 'schedule_page.dart';
+import 'qr_scanner_page.dart';
+import 'inval/inval_page.dart';
+import 'permission/permission_list_page.dart';
+import 'notification_page.dart';
+import 'grade_setup_page.dart';
 
 /// Teacher Dashboard - Following stitch design (s_03_dashboard_guru_new_style)
 class TeacherDashboardPage extends StatefulWidget {
@@ -17,9 +24,33 @@ class TeacherDashboardPage extends StatefulWidget {
   State<TeacherDashboardPage> createState() => _TeacherDashboardPageState();
 }
 
+class _GradeCardData {
+  final String classId;
+  final String subjectName;
+  final int completed;
+  final int total;
+  final bool isLocked;
+
+  const _GradeCardData({
+    required this.classId,
+    required this.subjectName,
+    required this.completed,
+    required this.total,
+    required this.isLocked,
+  });
+}
+
 class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   int _selectedNavIndex = 0;
   bool isCheckedIn = false; // Track check-in status
+  bool? _isPresent;
+  String? _attendanceReason;
+  int? _notifStartedForUserId;
+  int? _gradeLoadedForUserId;
+  bool _gradeLoading = false;
+  _GradeCardData? _gradeCard;
+
+  final GradeRepository _gradeRepository = GradeRepository();
 
   // Colors from stitch design
   static const Color _primary = Color(0xFF0040DF);
@@ -34,6 +65,23 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   static const Color _tertiary = Color(0xFF7A1BC8);
   static const Color _tertiaryContainer = Color(0xFF943FE2);
   static const Color _error = Color(0xFFBA1A1A);
+
+  Future<void> _onRefresh() async {
+    final attendanceBloc = context.read<AttendanceBloc>();
+    final scheduleBloc = context.read<ScheduleBloc>();
+
+    attendanceBloc.add(const CheckAttendanceStatus());
+    scheduleBloc.add(const LoadSchedules());
+
+    await Future.wait([
+      attendanceBloc.stream.firstWhere(
+        (state) => state is AttendanceStatusLoaded || state is AttendanceError,
+      ),
+      scheduleBloc.stream.firstWhere(
+        (state) => state is ScheduleLoaded || state is ScheduleError,
+      ),
+    ]);
+  }
 
   @override
   void initState() {
@@ -52,6 +100,64 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     return 'Selamat Malam';
   }
 
+  void _ensureNotificationRealtime(User? user) {
+    if (user == null) return;
+    if (_notifStartedForUserId == user.id) return;
+
+    _notifStartedForUserId = user.id;
+    context.read<NotificationBloc>().add(NotificationStarted(user.id));
+  }
+
+  void _ensureGradeCard(User? user) {
+    if (user == null || !user.isWaliKelas) return;
+    if (_gradeLoadedForUserId == user.id || _gradeLoading) return;
+
+    _gradeLoadedForUserId = user.id;
+    _loadGradeCard(user);
+  }
+
+  Future<void> _loadGradeCard(User user) async {
+    setState(() => _gradeLoading = true);
+    try {
+      final meta = await _gradeRepository.getMeta();
+      if (meta.periods.isEmpty ||
+          meta.subjects.isEmpty ||
+          meta.categories.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _gradeCard = null;
+          _gradeLoading = false;
+        });
+        return;
+      }
+
+      final periodId = meta.activePeriodId ?? meta.periods.first.id;
+      final subject = meta.subjects.first;
+      final category = meta.categories.first;
+      final summary = await _gradeRepository.getSummary(
+        periodId: periodId,
+        subjectId: subject.id,
+        categoryId: category.id,
+        itemNo: 1,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _gradeCard = _GradeCardData(
+          classId: meta.classId,
+          subjectName: subject.name,
+          completed: summary.completed,
+          total: summary.totalStudents,
+          isLocked: summary.isLocked,
+        );
+        _gradeLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _gradeLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocListener<AttendanceBloc, AttendanceState>(
@@ -60,11 +166,19 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         if (attendanceState is AttendanceStatusLoaded) {
           setState(() {
             isCheckedIn = attendanceState.hasCheckedIn;
+            _isPresent = attendanceState.isPresent;
+            _attendanceReason = attendanceState.reason;
           });
         }
 
         // Show success message after check-in
         if (attendanceState is AttendanceCheckInSuccess) {
+          setState(() {
+            isCheckedIn = true;
+            _isPresent = attendanceState.attendance.status == 'hadir';
+            _attendanceReason = attendanceState.attendance.reason;
+          });
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -102,6 +216,8 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           User? user;
           if (state is AuthAuthenticated) {
             user = state.user;
+            _ensureNotificationRealtime(user);
+            _ensureGradeCard(user);
           }
 
           final topPadding = MediaQuery.of(context).padding.top;
@@ -112,42 +228,47 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             body: Stack(
               children: [
                 // Main Content
-                CustomScrollView(
-                  slivers: [
-                    // TopAppBar spacing
-                    SliverToBoxAdapter(
-                      child: SizedBox(height: appBarHeight + 16),
-                    ),
-                    // Content
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
-                      sliver: SliverList(
-                        delegate: SliverChildListDelegate([
-                          // Check-In Banner
-                          _buildCheckInBanner(user),
-                          const SizedBox(height: 40),
-
-                          // Metrics Bento Grid
-                          _buildMetricsGrid(user),
-                          const SizedBox(height: 40),
-
-                          // Today's Schedule
-                          _buildScheduleSection(),
-                          const SizedBox(height: 40),
-
-                          // Jurnal Progress
-                          _buildJournalProgressCard(user),
-                        ]),
+                RefreshIndicator(
+                  onRefresh: _onRefresh,
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      // TopAppBar spacing
+                      SliverToBoxAdapter(
+                        child: SizedBox(height: appBarHeight + 16),
                       ),
-                    ),
-                  ],
+                      // Content
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
+                        sliver: SliverList(
+                          delegate: SliverChildListDelegate([
+                            // Check-In Banner
+                            _buildCheckInBanner(user),
+                            const SizedBox(height: 40),
+
+                            // Metrics Bento Grid
+                            _buildMetricsGrid(user),
+                            const SizedBox(height: 40),
+
+                            // Menu Utama (Quick Actions)
+                            _buildMainMenu(user),
+                            const SizedBox(height: 40),
+
+                            // Today's Schedule
+                            _buildScheduleSection(),
+                            const SizedBox(height: 40),
+
+                            // Jurnal Progress
+                            _buildJournalProgressCard(user),
+                          ]),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
 
                 // Fixed TopAppBar
                 _buildTopAppBar(user),
-
-                // Fixed BottomNavBar
-                _buildBottomNavBar(),
               ],
             ),
           );
@@ -223,26 +344,69 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                   ),
                 ),
                 // Notification Button
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      // TODO: Notifications
-                    },
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
+                BlocBuilder<NotificationBloc, NotificationState>(
+                  builder: (context, notifState) {
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const NotificationPage(),
+                            ),
+                          ).then((_) {
+                            if (!mounted) return;
+                            context.read<NotificationBloc>().add(
+                              const NotificationUnreadRequested(),
+                            );
+                          });
+                        },
                         borderRadius: BorderRadius.circular(20),
+                        child: SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              const Center(
+                                child: Icon(
+                                  Icons.notifications_outlined,
+                                  color: _primaryContainer,
+                                  size: 24,
+                                ),
+                              ),
+                              if (notifState.unreadCount > 0)
+                                Positioned(
+                                  right: 2,
+                                  top: 2,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFDC2626),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      notifState.unreadCount > 99
+                                          ? '99+'
+                                          : '${notifState.unreadCount}',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 9,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.notifications_outlined,
-                        color: _primaryContainer,
-                        size: 24,
-                      ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -252,25 +416,135 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
+  Widget _buildMainMenu(User? user) {
+    if (user == null) return const SizedBox.shrink();
+
+    // Setup base menus
+    final menus = [
+      {
+        'icon': Icons.event_note_rounded,
+        'label': 'Jadwal',
+        'color': _primary,
+        'bg': _primaryContainer.withAlpha(26),
+        'onTap': () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const SchedulePage()),
+        ),
+      },
+      {
+        'icon': Icons.swap_horizontal_circle_rounded,
+        'label': 'Inval',
+        'color': const Color(0xFFF59E0B), // amber-500
+        'bg': const Color(0xFFFEF3C7).withAlpha(76), // amber-100 0.3 opacity
+        'onTap': () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const InvalPage()),
+        ),
+      },
+    ];
+
+    // Conditionally add 'Perizinan' if user is Wali Kelas
+    if (user.isWaliKelas) {
+      menus.add({
+        'icon': Icons.verified_user_rounded,
+        'label': 'Perizinan',
+        'color': const Color(0xFF10B981), // emerald-500
+        'bg': const Color(0xFFD1FAE5).withAlpha(76), // emerald-100 0.3 opacity
+        'onTap': () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const PermissionListPage()),
+          );
+        },
+      });
+
+      menus.add({
+        'icon': Icons.grading_rounded,
+        'label': 'Penilaian',
+        'color': const Color(0xFF2563EB),
+        'bg': const Color(0xFFDBEAFE).withAlpha(76),
+        'onTap': () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const GradeSetupPage()),
+          );
+        },
+      });
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Menu Utama',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: _onSurface,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: menus.map((menu) {
+            return Padding(
+              padding: const EdgeInsets.only(right: 24.0),
+              child: GestureDetector(
+                onTap: menu['onTap'] as VoidCallback,
+                child: Column(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: menu['bg'] as Color,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        menu['icon'] as IconData,
+                        color: menu['color'] as Color,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      menu['label'] as String,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
   Widget _buildCheckInBanner(User? user) {
     // Use state field isCheckedIn (updated via BlocListener)
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFFFB923C),
-            Color(0xFFD97706),
-          ], // orange-400 to amber-600
+            _primary, // #0040DF
+            _tertiary, // #7A1BC8
+          ],
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFFB923C).withAlpha(51), // 0.2 opacity
-            blurRadius: 24,
+            color: _primary.withAlpha(77), // 0.3 opacity
+            blurRadius: 32,
             offset: const Offset(0, 8),
           ),
         ],
@@ -279,11 +553,11 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         children: [
           // Decorative blur circle
           Positioned(
-            right: -32,
-            top: -32,
+            right: -48,
+            bottom: -48,
             child: Container(
-              width: 160,
-              height: 160,
+              width: 180,
+              height: 180,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white.withAlpha(26), // 0.1 opacity
@@ -291,111 +565,136 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             ),
           ),
           // Content
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                'FOKUS HARI INI',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                  color: Colors.white.withAlpha(204), // 0.8 opacity
+              // Text Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Live badge & DateTime
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(51), // 0.2 opacity
+                            borderRadius: BorderRadius.circular(9999),
+                          ),
+                          child: Text(
+                            _attendanceBadgeText(),
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.5,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            DateFormat(
+                              'EEEE, dd MMM',
+                              'id_ID',
+                            ).format(DateTime.now()),
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withAlpha(204),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _attendanceTitleText(),
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _attendanceSubtitleText(),
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white.withAlpha(204), // 0.8 opacity
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.access_time_rounded,
+                          color: Colors.white70,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 4),
+                        StreamBuilder(
+                          stream: Stream.periodic(const Duration(seconds: 1)),
+                          builder: (context, snapshot) {
+                            return Text(
+                              DateFormat('HH:mm:ss').format(DateTime.now()),
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white.withAlpha(230),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 280),
-                child: Text(
-                  isCheckedIn
-                      ? 'Anda sudah check-in hari ini!'
-                      : 'Siap untuk memulai hari?',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    height: 1.2,
-                    color: Colors.white,
+              const SizedBox(width: 16),
+              // Check-in Button (circular)
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: isCheckedIn ? null : () => _handleCheckIn(),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(26), // 0.1 opacity
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      _attendanceActionText(),
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: _primary,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  // Check-in Button
-                  _buildBannerButton(
-                    label: isCheckedIn ? 'Sudah Check-in' : 'Check-in',
-                    icon: Icons.arrow_forward,
-                    isPrimary: true,
-                    enabled: !isCheckedIn,
-                    onTap: () => _handleCheckIn(),
-                  ),
-                  const SizedBox(width: 12),
-                  // Check-out Button
-                  _buildBannerButton(
-                    icon: Icons.logout,
-                    isPrimary: false,
-                    enabled: isCheckedIn,
-                    onTap: () {
-                      // TODO: Navigate to check-out
-                    },
-                  ),
-                ],
               ),
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildBannerButton({
-    String? label,
-    required IconData icon,
-    required bool isPrimary,
-    required bool enabled,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(9999),
-        child: Container(
-          padding: label != null
-              ? const EdgeInsets.symmetric(horizontal: 24, vertical: 12)
-              : const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: enabled
-                ? Colors.white.withAlpha(51) // 0.2 opacity
-                : Colors.white.withAlpha(26), // 0.1 opacity
-            borderRadius: BorderRadius.circular(9999),
-            border: Border.all(
-              color: Colors.white.withAlpha(77), // 0.3 opacity
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (label != null) ...[
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: enabled ? Colors.white : Colors.white70,
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-              Icon(
-                icon,
-                color: enabled ? Colors.white : Colors.white70,
-                size: 18,
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -875,8 +1174,20 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   }
 
   Widget _buildJournalProgressCard(User? user) {
-    // TODO: Get actual progress from API
-    const double progress = 0.67; // 4/6 = 67%
+    if (user == null || !user.isWaliKelas) {
+      return const SizedBox.shrink();
+    }
+
+    final total = _gradeCard?.total ?? 0;
+    final completed = _gradeCard?.completed ?? 0;
+    final progress = total == 0 ? 0.0 : completed / total;
+    final percent = (progress * 100).toInt();
+    final title = _gradeCard?.isLocked == true
+        ? 'Penilaian Terkunci'
+        : 'Penilaian Kelas Wali';
+    final subtitle = _gradeCard == null
+        ? 'Belum ada data penilaian'
+        : '${_gradeCard!.classId} • ${_gradeCard!.subjectName}';
 
     return Container(
       padding: const EdgeInsets.all(32),
@@ -908,7 +1219,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Jurnal Mengajar',
+                      title,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
@@ -919,6 +1230,15 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF394B96),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     // Progress Bar
                     Row(
                       children: [
@@ -945,7 +1265,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          '${(progress * 100).toInt()}%',
+                          '$percent%',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -958,13 +1278,23 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                     // Action Button
                     GestureDetector(
                       onTap: () {
-                        // TODO: Navigate to journal
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const GradeSetupPage(),
+                          ),
+                        ).then((_) {
+                          _gradeLoadedForUserId = null;
+                          _ensureGradeCard(user);
+                        });
                       },
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            'Lanjutkan Menulis',
+                            _gradeCard?.isLocked == true
+                                ? 'Lihat Hasil Nilai'
+                                : 'Lanjutkan Input Nilai',
                             style: GoogleFonts.inter(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -1024,7 +1354,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                     ),
                     // Center Text
                     Text(
-                      '4/6',
+                      _gradeLoading ? '...' : '$completed/$total',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
@@ -1041,121 +1371,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
-  Widget _buildBottomNavBar() {
-    return Positioned(
-      bottom: MediaQuery.of(context).padding.bottom > 0
-          ? MediaQuery.of(context).padding.bottom + 16
-          : 24,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(30),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    _primary.withAlpha(230), // primary blue 0.9 opacity
-                    _primaryContainer.withAlpha(
-                      230,
-                    ), // primary container 0.9 opacity
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(
-                  color: Colors.white.withAlpha(77), // 0.3 opacity
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: _primary.withAlpha(77), // 0.3 opacity
-                    blurRadius: 32,
-                    offset: const Offset(0, 8),
-                    spreadRadius: -4,
-                  ),
-                  BoxShadow(
-                    color: Colors.black.withAlpha(26), // 0.1 opacity
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildNavItem(0, Icons.home_rounded),
-                  const SizedBox(width: 12),
-                  _buildNavItem(1, Icons.calendar_today_rounded),
-                  const SizedBox(width: 12),
-                  _buildNavItem(2, Icons.qr_code_scanner_rounded),
-                  const SizedBox(width: 12),
-                  _buildNavItem(3, Icons.person_rounded),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(int index, IconData icon) {
-    final isSelected = _selectedNavIndex == index;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() => _selectedNavIndex = index);
-        switch (index) {
-          case 1:
-            // Navigate to Schedule page
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const SchedulePage()),
-            ).then((_) {
-              // Reset to home when returning
-              setState(() => _selectedNavIndex = 0);
-            });
-            break;
-          case 3:
-            _showLogoutDialog();
-            break;
-        }
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Colors.white
-              : Colors.white.withAlpha(26), // 0.1 opacity
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Colors.white.withAlpha(51), // 0.2 opacity
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : [],
-        ),
-        child: Icon(
-          icon,
-          color: isSelected
-              ? _primary // primary blue when selected
-              : Colors.white.withAlpha(204), // 0.8 opacity when not selected
-          size: 24,
-        ),
-      ),
-    );
-  }
-
   void _handleCheckIn() {
     showModalBottomSheet(
       context: context,
@@ -1166,47 +1381,56 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     // BLoC will handle the submission and update UI via listener
   }
 
-  void _showLogoutDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Logout',
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-        ),
-        content: Text(
-          'Apakah Anda yakin ingin keluar?',
-          style: GoogleFonts.inter(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Batal',
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.w600,
-                color: _onSurfaceVariant,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              context.read<AuthBloc>().add(AuthLogoutRequested());
-            },
-            child: Text(
-              'Logout',
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.w600,
-                color: _error,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  String _attendanceBadgeText() {
+    if (!isCheckedIn) return 'BELUM CHECK-IN';
+    if (_isPresent == false) {
+      if (_isSakitReason) return 'IZIN SAKIT';
+      if (_isDinasLuarReason) return 'DINAS LUAR';
+      if (_isIzinReason) return 'IZIN';
+      return 'TIDAK HADIR';
+    }
+    return 'SUDAH HADIR';
   }
+
+  String _attendanceTitleText() {
+    if (!isCheckedIn) return 'Konfirmasi Kehadiran';
+    if (_isPresent == false) {
+      if (_isSakitReason) return 'Semoga Lekas Sembuh';
+      if (_isDinasLuarReason) return 'Tugas Dinas Tercatat';
+      if (_isIzinReason) return 'Izin Tercatat';
+      return 'Ketidakhadiran Tercatat';
+    }
+    return 'Selamat Mengajar!';
+  }
+
+  String _attendanceSubtitleText() {
+    if (!isCheckedIn) return 'Tap tombol untuk check-in';
+    if (_isPresent == false) {
+      if (_isSakitReason) return 'Anda tercatat izin sakit hari ini';
+      if (_isDinasLuarReason) return 'Anda tercatat dinas luar hari ini';
+      if (_isIzinReason) return 'Anda tercatat izin hari ini';
+      return 'Status ketidakhadiran Anda sudah tercatat';
+    }
+    return 'Anda sudah check-in hari ini';
+  }
+
+  String _attendanceActionText() {
+    if (!isCheckedIn) return 'Presensi';
+    if (_isPresent == false) {
+      if (_isSakitReason) return 'Sakit';
+      if (_isDinasLuarReason) return 'Dinas Luar';
+      if (_isIzinReason) return 'Izin';
+      return 'Tidak Hadir';
+    }
+    return 'Hadir';
+  }
+
+  String get _normalizedReason =>
+      (_attendanceReason ?? '').trim().toLowerCase();
+  bool get _isSakitReason => _normalizedReason.contains('sakit');
+  bool get _isIzinReason => _normalizedReason.contains('izin');
+  bool get _isDinasLuarReason =>
+      _normalizedReason.contains('dinas') || _normalizedReason.contains('luar');
 }
 
 enum ScheduleStatus { done, open, locked }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/constants/app_colors.dart';
 import 'core/constants/app_dimensions.dart';
@@ -11,12 +12,19 @@ import 'features/auth/presentation/bloc/bloc.dart';
 import 'features/auth/presentation/pages/login_page.dart';
 import 'features/teacher/data/repositories/attendance_repository.dart';
 import 'features/teacher/data/repositories/schedule_repository.dart';
+import 'features/teacher/data/repositories/inval_repository.dart';
+import 'features/teacher/data/repositories/notification_repository.dart';
+import 'features/teacher/data/repositories/permission_repository.dart';
 import 'features/teacher/presentation/bloc/bloc.dart';
 import 'features/teacher/presentation/pages/teacher_dashboard_page.dart';
+import 'features/teacher/presentation/pages/teacher_main_page.dart';
 import 'features/bk/presentation/pages/bk_dashboard_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize intl localization data (untuk format tanggal ID)
+  await initializeDateFormatting('id_ID', null);
 
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
@@ -35,12 +43,18 @@ void main() async {
   final authRepository = AuthRepository();
   final attendanceRepository = AttendanceRepository();
   final scheduleRepository = ScheduleRepository();
+  final invalRepository = InvalRepository();
+  final notificationRepository = NotificationRepository();
+  final permissionRepository = PermissionRepository();
 
   runApp(
     SimPanlaApp(
       authRepository: authRepository,
       attendanceRepository: attendanceRepository,
       scheduleRepository: scheduleRepository,
+      invalRepository: invalRepository,
+      notificationRepository: notificationRepository,
+      permissionRepository: permissionRepository,
     ),
   );
 }
@@ -49,12 +63,18 @@ class SimPanlaApp extends StatelessWidget {
   final AuthRepository authRepository;
   final AttendanceRepository attendanceRepository;
   final ScheduleRepository scheduleRepository;
+  final InvalRepository invalRepository;
+  final NotificationRepository notificationRepository;
+  final PermissionRepository permissionRepository;
 
   const SimPanlaApp({
     super.key,
     required this.authRepository,
     required this.attendanceRepository,
     required this.scheduleRepository,
+    required this.invalRepository,
+    required this.notificationRepository,
+    required this.permissionRepository,
   });
 
   @override
@@ -64,6 +84,9 @@ class SimPanlaApp extends StatelessWidget {
         RepositoryProvider.value(value: authRepository),
         RepositoryProvider.value(value: attendanceRepository),
         RepositoryProvider.value(value: scheduleRepository),
+        RepositoryProvider.value(value: invalRepository),
+        RepositoryProvider.value(value: notificationRepository),
+        RepositoryProvider.value(value: permissionRepository),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -78,6 +101,17 @@ class SimPanlaApp extends StatelessWidget {
           ),
           BlocProvider(
             create: (context) => ScheduleBloc(repository: scheduleRepository),
+          ),
+          BlocProvider(
+            create: (context) => InvalBloc(repository: invalRepository),
+          ),
+          BlocProvider(
+            create: (context) =>
+                NotificationBloc(repository: notificationRepository),
+          ),
+          BlocProvider(
+            create: (context) =>
+                PermissionBloc(repository: permissionRepository),
           ),
         ],
         child: MaterialApp(
@@ -303,7 +337,7 @@ class AuthNavigator extends StatelessWidget {
             return const BkDashboardPage();
           } else {
             // Default to Teacher Dashboard for Guru
-            return const TeacherDashboardPage();
+            return const TeacherMainPage();
           }
         }
 

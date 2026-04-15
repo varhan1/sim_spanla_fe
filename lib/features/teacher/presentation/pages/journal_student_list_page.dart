@@ -236,11 +236,15 @@ class _HeroHeader extends StatelessWidget {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Text(
-                    state.subjectName,
-                    style: AppTextStyles.titleMedium.copyWith(
-                      color: Colors.white.withOpacity(0.9),
-                      fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Text(
+                      state.subjectName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.titleMedium.copyWith(
+                        color: Colors.white.withOpacity(0.9),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   Container(
@@ -252,11 +256,16 @@ class _HeroHeader extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                   ),
-                  Text(
-                    state.timeSlot,
-                    style: AppTextStyles.titleMedium.copyWith(
-                      color: Colors.white.withOpacity(0.8),
-                      fontStyle: FontStyle.italic,
+                  Flexible(
+                    child: Text(
+                      state.timeSlot,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: AppTextStyles.titleMedium.copyWith(
+                        color: Colors.white.withOpacity(0.8),
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
                   ),
                 ],
