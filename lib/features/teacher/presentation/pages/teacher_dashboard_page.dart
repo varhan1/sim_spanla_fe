@@ -10,7 +10,6 @@ import '../../data/models/schedule.dart';
 import '../bloc/bloc.dart';
 import 'check_in_page.dart';
 import 'schedule_page.dart';
-import 'qr_scanner_page.dart';
 import 'inval/inval_page.dart';
 import 'permission/permission_list_page.dart';
 import 'notification_page.dart';
@@ -41,7 +40,7 @@ class _GradeCardData {
 }
 
 class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
-  int _selectedNavIndex = 0;
+  final int _selectedNavIndex = 0;
   bool isCheckedIn = false; // Track check-in status
   bool? _isPresent;
   String? _attendanceReason;

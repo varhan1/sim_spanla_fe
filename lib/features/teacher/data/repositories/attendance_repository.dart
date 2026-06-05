@@ -36,8 +36,8 @@ class AttendanceRepository {
     try {
       final data = <String, dynamic>{
         'status': status,
-        if (reason != null) 'reason': reason,
-        if (description != null) 'description': description,
+        'reason': ?reason,
+        'description': ?description,
       };
 
       final response = await _dioClient.dio.post(

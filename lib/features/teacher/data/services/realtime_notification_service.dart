@@ -51,7 +51,7 @@ class RealtimeNotificationService {
       if (event == 'notification.pushed') {
         final data = payload['data'];
         final dataMap = data is Map
-            ? Map<String, dynamic>.from(data as Map)
+            ? Map<String, dynamic>.from(data)
             : _toMap(data);
         if (dataMap != null) {
           onNotification(AppNotification.fromJson(dataMap));

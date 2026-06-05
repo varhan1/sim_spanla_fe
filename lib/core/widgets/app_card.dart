@@ -235,7 +235,7 @@ class AppSectionCard extends StatelessWidget {
                         color: AppColors.onSurface,
                       ),
                     ),
-                  if (action != null) action!,
+                  ?action,
                 ],
               ),
             ),

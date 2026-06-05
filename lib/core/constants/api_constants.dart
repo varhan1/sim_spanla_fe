@@ -4,13 +4,25 @@ class ApiConstants {
 
   // ========== BASE URLs ==========
 
-  /// Local API Base URL (For physical device testing, use your machine's local IP)
-  // Gunakan IP Address komputer yang aktif saat ini
-  static const String baseUrl =
-      'http://192.168.1.8:8000'; // Make sure to run `php artisan serve --host=0.0.0.0`
+  static const String _localBaseUrl = 'http://192.168.0.131:8000';
+  static const String _stagingBaseUrl = 'https://smpn8.my.id';
 
-  /// Production API Base URL (Commented out for local testing)
-  // static const String baseUrl = 'https://smpn8.my.id';
+  /// Select API target with: --dart-define=API_ENV=local|staging
+  static const String apiEnv = String.fromEnvironment(
+    'API_ENV',
+    defaultValue: 'local',
+  );
+
+  /// Override base URL directly with: --dart-define=API_BASE_URL=http://...
+  static const String _apiBaseUrlOverride = String.fromEnvironment(
+    'API_BASE_URL',
+  );
+
+  static const String baseUrl = _apiBaseUrlOverride != ''
+      ? _apiBaseUrlOverride
+      : apiEnv == 'staging'
+      ? _stagingBaseUrl
+      : _localBaseUrl;
 
   /// API Version prefix
   static const String apiVersion = 'v1';
@@ -93,9 +105,9 @@ class ApiConstants {
 
   // Realtime (Laravel Reverb)
   static const String reverbAppKey = 'pwbsq25fnsp4avv7psnl';
-  static const String reverbHost = '192.168.1.8';
-  static const int reverbPort = 8080;
-  static const bool reverbUseTls = false;
+  static const String reverbHost = 'smpn8.my.id';
+  static const int reverbPort = 443;
+  static const bool reverbUseTls = true;
 
   // ========== HTTP TIMEOUTS ==========
 

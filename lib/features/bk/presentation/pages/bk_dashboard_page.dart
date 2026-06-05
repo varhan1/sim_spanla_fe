@@ -1758,7 +1758,7 @@ class _BkDashboardPageState extends State<BkDashboardPage> {
     final classesByJenjang = _classesByJenjang();
     final classChips = [
       'All',
-      ...classesByJenjang.map((e) => e.namaKelas).toList(),
+      ...classesByJenjang.map((e) => e.namaKelas),
     ];
     final activeClass = _watchClassFilter == 'Semua'
         ? 'All'
@@ -1963,6 +1963,10 @@ class _BkDashboardPageState extends State<BkDashboardPage> {
     final attendance = _attendancePercent(k);
     final urgent =
         k.totalAlpa >= _alpaThreshold || k.totalTerlambat >= _lateThreshold;
+    final statusLabel = k.sudahAbsen ? 'Sudah jurnal' : 'Belum jurnal';
+    final statusColor = k.sudahAbsen
+        ? const Color(0xFF15803D)
+        : const Color(0xFFB45309);
 
     final hue = (k.namaKelas.hashCode % 360).abs().toDouble();
     final avatarColorA = HSLColor.fromAHSL(1, hue, 0.55, 0.55).toColor();
@@ -1973,78 +1977,519 @@ class _BkDashboardPageState extends State<BkDashboardPage> {
       0.55,
     ).toColor();
 
+    final totalSiswa = k.totalSiswa == 0 ? k.students.length : k.totalSiswa;
+    final hadirCount = k.students.where((s) => s.isPresent).length;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _showClassDetailBottomSheet(k),
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: urgent ? const Color(0xFFFCA5A5) : const Color(0xFFE8ECF7),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 14,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [avatarColorA, avatarColorB],
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      k.namaKelas,
+                      style: GoogleFonts.plusJakartaSans(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                'Kelas ${k.namaKelas}',
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontWeight: FontWeight.w800,
+                                  color: _ink,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            if (urgent) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEE2E2),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  'URGENT',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFFB91C1C),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          k.waliKelas,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            color: const Color(0xFF63708A),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(0xFF8A93A8),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _compactClassStat('Hadir', '$hadirCount/$totalSiswa', _primary),
+                  const SizedBox(width: 8),
+                  _compactClassStat('Alpa', '${k.totalAlpa}', const Color(0xFFDC2626)),
+                  const SizedBox(width: 8),
+                  _compactClassStat('Telat', '${k.totalTerlambat}', const Color(0xFF7C3AED)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Icon(
+                    k.sudahAbsen ? Icons.check_circle_rounded : Icons.schedule_rounded,
+                    size: 16,
+                    color: statusColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '$statusLabel • $attendance% attendance',
+                    style: GoogleFonts.inter(
+                      color: statusColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    'Detail',
+                    style: GoogleFonts.plusJakartaSans(
+                      color: _primary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _compactClassStat(String label, String value, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF6F8FE),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _line),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                color: _muted,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: GoogleFonts.plusJakartaSans(
+                color: color,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showClassDetailBottomSheet(_BkClassSummary item) {
+    final risk = _riskLabel(
+      item.totalAlpa,
+      lateCount: item.totalTerlambat,
+    );
+    final riskTone = _riskTone(risk);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.72,
+          minChildSize: 0.45,
+          maxChildSize: 0.92,
+          expand: false,
+          builder: (ctx, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD3D9EA),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Detail Kelas ${item.namaKelas}',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 21,
+                                  fontWeight: FontWeight.w800,
+                                  color: _ink,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                item.sudahAbsen
+                                    ? 'Jurnal hari ini sudah masuk.'
+                                    : 'Belum ada jurnal hari ini.',
+                                style: GoogleFonts.inter(
+                                  color: item.sudahAbsen
+                                      ? const Color(0xFF15803D)
+                                      : const Color(0xFFB45309),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: riskTone.bg,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            risk,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: riskTone.fg,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _classMetricTile(
+                            'Wali Kelas',
+                            item.waliKelas,
+                            const Color(0xFF2250E8),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _classMetricTile(
+                            'Total Jadwal',
+                            '${item.totalJadwal} jadwal',
+                            const Color(0xFF7C3AED),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Presensi Siswa Hari Ini',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: _ink,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (item.students.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFF),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: _line),
+                        ),
+                        child: Text(
+                          'Belum ada data siswa untuk kelas ini.',
+                          style: GoogleFonts.inter(color: _muted, fontSize: 12),
+                        ),
+                      )
+                    else
+                      ...item.students.map(_classStudentTile),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _classMetricTile(String label, String value, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFFF8F9FD),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE8ECF7)),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              color: _muted,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.plusJakartaSans(
+              color: color,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _classStudentTile(_BkClassStudent item) {
+    final tone = _studentStatusTone(item.status);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _line),
       ),
       child: Row(
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [avatarColorA, avatarColorB],
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: tone.bg,
+            child: Text(
+              _initials(item.name),
+              style: GoogleFonts.plusJakartaSans(
+                color: tone.fg,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Text(
-                      'Class ${k.namaKelas}',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontWeight: FontWeight.w800,
-                        color: _ink,
-                        fontSize: 14,
-                      ),
-                    ),
-                    if (urgent) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEE2E2),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          'URGENT',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFFB91C1C),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+                Text(
+                  item.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: _ink,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '$attendance% Attendance',
+                  'NIS ${item.nis.isEmpty ? '-' : item.nis} • Masuk ${item.jamMasuk ?? '-'}',
                   style: GoogleFonts.inter(
-                    color: const Color(0xFF63708A),
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w500,
+                    color: _muted,
                   ),
                 ),
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: Color(0xFF8A93A8)),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: tone.bg,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              item.statusLabel,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                color: tone.fg,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  ({Color fg, Color bg}) _studentStatusTone(String status) {
+    final normalized = status.toLowerCase();
+    if (normalized.contains('terlambat')) {
+      return (fg: const Color(0xFF6D28D9), bg: const Color(0xFFEDE9FE));
+    }
+    if (normalized.contains('alpa') || normalized.contains('belum')) {
+      return (fg: const Color(0xFFB91C1C), bg: const Color(0xFFFEE2E2));
+    }
+    if (normalized.contains('izin') || normalized.contains('sakit')) {
+      return (fg: const Color(0xFFB45309), bg: const Color(0xFFFEF3C7));
+    }
+    return (fg: const Color(0xFF15803D), bg: const Color(0xFFDCFCE7));
+  }
+
+  Widget _classScheduleTile(_BkClassSchedule item) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _line),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            item.sudahJurnal
+                ? Icons.check_circle_rounded
+                : Icons.radio_button_unchecked_rounded,
+            color: item.sudahJurnal
+                ? const Color(0xFF16A34A)
+                : const Color(0xFFF59E0B),
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.mapel,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: _ink,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${item.guru} • ${item.jam}',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: _muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            item.sudahJurnal ? 'Selesai' : 'Belum',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: item.sudahJurnal
+                  ? const Color(0xFF15803D)
+                  : const Color(0xFFB45309),
+            ),
+          ),
         ],
       ),
     );
@@ -2555,28 +3000,119 @@ class _AttachmentPreviewPage extends StatelessWidget {
 class _BkClassSummary {
   final String kelas;
   final String namaKelas;
+  final String waliKelas;
   final int totalAlpa;
   final int totalTerlambat;
   final String? jamMasukPertama;
+  final int totalJadwal;
+  final int totalSiswa;
   final bool sudahAbsen;
+  final List<_BkClassSchedule> jadwal;
+  final List<_BkClassStudent> students;
 
   const _BkClassSummary({
     required this.kelas,
     required this.namaKelas,
+    required this.waliKelas,
     required this.totalAlpa,
     required this.totalTerlambat,
     required this.jamMasukPertama,
+    required this.totalJadwal,
+    required this.totalSiswa,
     required this.sudahAbsen,
+    required this.jadwal,
+    required this.students,
   });
 
   factory _BkClassSummary.fromJson(Map<String, dynamic> json) {
+    final rawSchedules = json['jadwal'] as List<dynamic>? ?? const [];
+    final rawStudents = json['students'] as List<dynamic>? ?? const [];
+
     return _BkClassSummary(
       kelas: (json['kelas'] ?? '').toString(),
       namaKelas: (json['nama_kelas'] ?? json['kelas'] ?? '').toString(),
+      waliKelas: (json['wali_kelas'] ?? 'Belum Ditetapkan').toString(),
       totalAlpa: _asInt(json['total_alpa']),
       totalTerlambat: _asInt(json['total_terlambat']),
       jamMasukPertama: json['jam_masuk_pertama']?.toString(),
+      totalJadwal: _asInt(json['total_jadwal']),
+      totalSiswa: _asInt(json['total_siswa']),
       sudahAbsen: json['sudah_absen'] == true,
+      jadwal: rawSchedules
+          .map((e) => _BkClassSchedule.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      students: rawStudents
+          .map((e) => _BkClassStudent.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+}
+
+class _BkClassStudent {
+  final int id;
+  final String nis;
+  final String nisn;
+  final String name;
+  final String status;
+  final String? jamMasuk;
+
+  const _BkClassStudent({
+    required this.id,
+    required this.nis,
+    required this.nisn,
+    required this.name,
+    required this.status,
+    required this.jamMasuk,
+  });
+
+  bool get isPresent {
+    final normalized = status.toLowerCase();
+    return normalized.contains('hadir') ||
+        normalized.contains('masuk') ||
+        normalized.contains('terlambat');
+  }
+
+  String get statusLabel {
+    final normalized = status.toLowerCase();
+    if (normalized.contains('terlambat')) return 'Terlambat';
+    if (normalized.contains('masuk') || normalized.contains('hadir')) return 'Hadir';
+    if (normalized.contains('sakit')) return 'Sakit';
+    if (normalized.contains('izin')) return 'Izin';
+    if (normalized.contains('alpa')) return 'Alpa';
+    return 'Belum';
+  }
+
+  factory _BkClassStudent.fromJson(Map<String, dynamic> json) {
+    return _BkClassStudent(
+      id: _asInt(json['id']),
+      nis: (json['nis'] ?? '').toString(),
+      nisn: (json['nisn'] ?? '').toString(),
+      name: (json['name'] ?? '-').toString(),
+      status: (json['status'] ?? 'Belum Absen').toString(),
+      jamMasuk: json['jam_masuk']?.toString(),
+    );
+  }
+}
+
+class _BkClassSchedule {
+  final String mapel;
+  final String guru;
+  final String jam;
+  final bool sudahJurnal;
+
+  const _BkClassSchedule({
+    required this.mapel,
+    required this.guru,
+    required this.jam,
+    required this.sudahJurnal,
+  });
+
+  factory _BkClassSchedule.fromJson(Map<String, dynamic> json) {
+    return _BkClassSchedule(
+      mapel: (json['mapel'] ?? '-').toString(),
+      guru: (json['guru'] ?? '-').toString(),
+      jam: (json['jam'] ?? '-').toString(),
+      sudahJurnal: json['sudah_jurnal'] == true,
     );
   }
 }
